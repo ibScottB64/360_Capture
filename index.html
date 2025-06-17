@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360 Capture Guide</title>
+    <style>
+        /* Basic Reset & Body Styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+            box-sizing: border-box;
+        }
+
+        /* Camera Preview */
+        #camera-preview {
+            width: 100%;
+            max-width: 600px; /* Limit preview size */
+            height: auto;
+            aspect-ratio: 4 / 3; /* Maintain aspect ratio */
+            background-color: #ccc;
+            border: 2px solid #555;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: scaleX(-1); /* Mirror the preview */
+            display: none; /* Hidden until stream is ready */
+            object-fit: cover; /* Ensure video fills the aspect ratio */
+        }
+
+        /* Instructions and Status */
+        #instructions, #status-message {
+            margin: 15px 0;
+            text-align: center;
+            max-width: 500px;
+            font-size: 1.1em;
+            line-height: 1.5;
+        }
+        #status-message {
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        /* Buttons */
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Progress Indicator Area */
+        #progress-area {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        #progress-container {
+            width: 100%;
+            height: 60px; /* Fixed height for the progress bar */
+            background-color: white;
+            border: 2px solid #ccc;
+            display: flex;
+            overflow: hidden; /* Important to clip child elements */
+            position: relative; /* For absolute positioning of elements if needed */
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        #progress-rect {
+            height: 100%;
+            background: linear-gradient(to right, #e0e0e0, #f8f8f8); /* Subtle gradient */
+            display: flex; /* Use flex for image segments */
+            transition: width 0.2s ease-out; /* Smoothly expand the filled part */
+        }
+
+        .progress-segment {
+            height: 100%;
+            flex-shrink: 0; /* Prevent shrinking */
+            object-fit: cover; /* Ensure image covers segment area */
+            background-color: #eee; /* Placeholder color */
+            border-right: 1px solid #ddd; /* Visual separator */
+        }
+        .progress-segment:last-child {
+            border-right: none;
+        }
+
+
+        /* Tilt Indicator */
+        #tilt-indicator {
+            width: 80%;
+            max-width: 500px;
+            height: 30px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 1px solid #aaa;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            position: relative;
+        }
+        #tilt-indicator::before,
+        #tilt-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 5px;
+            height: 20px;
+            background-color: #ccc; /* Default neutral color */
+            border-radius: 3px;
+        }
+        #tilt-indicator::before {
+            left: 25%;
+        }
+        #tilt-indicator::after {
+            right: 25%;
+        }
+        .tilt-warning {
+            background-color: rgba(255, 193, 7, 0.7); /* Amber */
+        }
+        .tilt-warning::before,
+        .tilt-warning::after {
+            background-color: #ffc107; /* Amber indicator */
+        }
+        .tilt-danger {
+             background-color: rgba(220, 53, 69, 0.7); /* Red */
+        }
+        .tilt-danger::before,
+        .tilt-danger::after {
+             background-color: #dc3545; /* Red indicator */
+        }
+        #tilt-indicator span {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #555;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+
+        /* Speed Indicator */
+        #speed-indicator {
+            width: 80%;
+            max-width: 500px;
+            height: 25px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            margin-top: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+        #speed-meter {
+            height: 100%;
+            width: 0%;
+            background-color: #28a745; /* Green */
+            transition: width 0.2s ease-out;
+        }
+        #speed-indicator-text {
+             position: absolute;
+             top: 50%;
+             left: 50%;
+             transform: translate(-50%, -50%);
+             font-size: 0.8em;
+             color: white;
+             font-weight: bold;
+             text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+        }
+
+        /* Final Controls */
+        #final-controls {
+            display: none; /* Hidden until capture is complete */
+            margin-top: 20px;
+        }
+
+        /* Media Queries for smaller screens */
+        @media (max-width: 768px) {
+            button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+            #camera-preview {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 1 / 1; /* Different aspect ratio on smaller screens */
+            }
+            #instructions, #status-message {
+                 font-size: 1em;
+                 padding: 0 10px;
+            }
+            #tilt-indicator, #speed-indicator {
+                width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>360 Photo Capture</h1>
+
+    <video id="camera-preview" autoplay playsinline muted></video>
+
+    <p id="instructions">
+        Find a feature to start with (like a desk or chair).
+        Hold your phone vertically.
+        Tap "Start Capture" when ready.
+    </p>
+
+    <button id="start-capture">Start Capture</button>
+
+    <div id="progress-area">
+        <div id="progress-container">
+            <div id="progress-rect">
+                <!-- Image segments will be appended here -->
+            </div>
+        </div>
+        <div id="tilt-indicator">
+            <span>Aim slightly down</span>
+            <!-- Indicators change based on tilt -->
+        </div>
+        <div id="speed-indicator">
+            <div id="speed-meter"></div>
+            <div id="speed-indicator-text">0°/s</div>
+        </div>
+    </div>
+
+    <div id="final-controls">
+        <button id="submit-capture">Submit</button>
+        <button id="retake-capture">Retake</button>
+    </div>
+
+    <p id="status-message"></p>
+
+    <script>
+        // --- Configuration ---
+        const TARGET_ROTATION_DEGREES = 360;
+        const OVERLAP_DEGREES = 20; // Each image overlaps the previous one by this amount
+        const MAX_SPEED_DPS = 45; // Max degrees per second to avoid blur (adjust as needed)
+        const TILT_WARNING_THRESHOLD = 15; // Degrees deviation from horizontal (beta=0) for warning
+        const TILT_DANGER_THRESHOLD = 30; // Degrees deviation for danger (more aggressive warning)
+        const HIGH_RES_WIDTH = 3840; // Target high resolution width (check device capabilities)
+        const HIGH_RES_HEIGHT = 2160; // Target high resolution height
+        const IMAGE_FORMAT = 'image/jpeg'; // or 'image/png'
+        const IMAGE_QUALITY = 0.92; // Quality for JPEG
+        const UPLOAD_URL = '/api/upload-360-images'; // Placeholder URL
+
+        // --- DOM Elements ---
+        const cameraPreview = document.getElementById('camera-preview');
+        const startCaptureButton = document.getElementById('start-capture');
+        const submitCaptureButton = document.getElementById('submit-capture');
+        const retakeCaptureButton = document.getElementById('retake-capture');
+        const instructionsText = document.getElementById('instructions');
+        const statusMessage = document.getElementById('status-message');
+        const progressRect = document.getElementById('progress-rect');
+        const tiltIndicator = document.getElementById('tilt-indicator');
+        const speedMeter = document.getElementById('speed-meter');
+        const speedIndicatorText = document.getElementById('speed-indicator-text');
+        const finalControlsDiv = document.getElementById('final-controls');
+
+        // --- State Variables ---
+        let videoStream = null;
+        let mediaRecorder = null; // Not using for capturing frames, but good to know
+        let highResCanvas = null;
+        let highResCtx = null;
+        let capturedImages = []; // Array to store image Blobs
+        let isCapturing = false;
+        let isRecording = false; // Tracks if we are actively processing captures
+        let initialAlpha = null; // Alpha angle at the start of capture
+        let lastAlpha = null;
+        let lastTimestamp = null;
+        let currentRotation = 0;
+        let animationFrameId = null;
+        let numSegments = Math.ceil(TARGET_ROTATION_DEGREES / (OVERLAP_DEGREES));
+        let segmentWidthPx = 0; // Calculated width for each segment in progress bar
+
+        // --- Permissions ---
+        async function requestPermissions() {
+            statusMessage.textContent = 'Requesting camera access...';
+            try {
+                // Request camera permission
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment', // Use rear camera
+                        width: { ideal: HIGH_RES_WIDTH },
+                        height: { ideal: HIGH_RES_HEIGHT },
+                        frameRate: { ideal: 30 } // Request a decent frame rate
+                    },
+                    audio: false
+                });
+
+                cameraPreview.srcObject = videoStream;
+                cameraPreview.style.display = 'block'; // Show preview once stream is ready
+                statusMessage.textContent = 'Camera ready. Please stand by...';
+
+                // Wait for the video to be ready to get metadata like aspect ratio if needed
+                await new Promise((resolve) => {
+                    cameraPreview.onloadedmetadata = resolve;
+                });
+
+                // Device orientation permission (optional, some browsers handle implicitly)
+                if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+                    // iOS 13+ needs explicit permission
+                    await DeviceOrientationEvent.requestPermission();
+                    statusMessage.textContent = 'Permissions granted. Ready to start.';
+                } else {
+                     statusMessage.textContent = 'Camera permission granted. Ready to start.';
+                }
+
+                startCaptureButton.disabled = false; // Enable start button
+                startCaptureButton.textContent = 'Start Capture';
+                return true;
+
+            } catch (err) {
+                console.error("Error accessing media devices or permissions:", err);
+                statusMessage.textContent = `Error: ${err.message}. Please grant permissions.`;
+                startCaptureButton.disabled = true;
+                startCaptureButton.textContent = 'Grant Permissions First';
+                return false;
+            }
+        }
+
+        // --- High-Resolution Capture ---
+        function setupHighResCanvas() {
+            if (!highResCanvas) {
+                highResCanvas = document.createElement('canvas');
+                highResCtx = highResCanvas.getContext('2d');
+            }
+            // Set canvas dimensions to match the video stream's actual dimensions
+            // This is crucial for capturing the correct resolution
+            highResCanvas.width = cameraPreview.videoWidth || HIGH_RES_WIDTH;
+            highResCanvas.height = cameraPreview.videoHeight || HIGH_RES_HEIGHT;
+
+            // If using exact dimensions, adjust constraints might be needed if they don't match
+            // console.log(`High res canvas set to: ${highResCanvas.width}x${highResCanvas.height}`);
+        }
+
+        function captureFrameAsBlob() {
+            if (!highResCanvas || !highResCtx || !isCapturing) return null;
+
+            setupHighResCanvas(); // Ensure canvas is correctly sized
+
+            // Draw the current video frame onto the canvas
+            // The video is mirrored, so we need to flip it horizontally before drawing
+            highResCtx.save();
+            highResCtx.scale(-1, 1); // Mirror context horizontally
+            highResCtx.drawImage(cameraPreview, -highResCanvas.width, 0, highResCanvas.width, highResCanvas.height); // Draw mirrored
+            highResCtx.restore();
+
+            return new Promise(resolve => {
+                highResCanvas.toBlob(blob => {
+                    resolve(blob);
+                }, IMAGE_FORMAT, IMAGE_QUALITY);
+            });
+        }
+
+        // --- Progress Indicator Management ---
+        function updateProgressIndicator(imageBlob) {
+            if (!imageBlob) return;
+
+            const segmentIndex = capturedImages.length - 1; // Current image is the latest capture
+            const segmentAngle = TARGET_ROTATION_DEGREES / numSegments;
+            const segmentWidthRatio = segmentAngle / TARGET_ROTATION_DEGREES;
+            segmentWidthPx = progressRect.offsetWidth * segmentWidthRatio;
+
+            const segmentCanvas = document.createElement('canvas');
+            segmentCanvas.className = 'progress-segment';
+            segmentCanvas.style.width = `${segmentWidthRatio * 100}%`; // Set width as percentage
+
+            const segmentCtx = segmentCanvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+                // Scale image to fit the segment while maintaining aspect ratio
+                // This is tricky: the image needs to fill the segment width.
+                // We need to calculate the correct height to maintain aspect ratio
+                // and then potentially crop or center it. For simplicity here,
+                // we'll scale to fill the width and let height adjust, potentially
+                // causing some vertical cropping if the segment aspect ratio differs
+                // significantly from the original capture.
+
+                const segmentAspectRatio = segmentCanvas.width / segmentCanvas.height;
+                const imageAspectRatio = img.width / img.height;
+
+                let drawWidth, drawHeight, drawX, drawY;
+
+                if (imageAspectRatio > segmentAspectRatio) {
+                    // Image is wider than segment aspect ratio, scale by width
+                    drawWidth = segmentCanvas.width;
+                    drawHeight = segmentCanvas.width / imageAspectRatio;
+                    drawX = 0;
+                    drawY = (segmentCanvas.height - drawHeight) / 2; // Center vertically
+                } else {
+                    // Image is taller than segment aspect ratio, scale by height
+                    drawHeight = segmentCanvas.height;
+                    drawWidth = segmentCanvas.height * imageAspectRatio;
+                    drawY = 0;
+                    drawX = (segmentCanvas.width - drawWidth) / 2; // Center horizontally
+                }
+
+                // Draw the scaled and centered image onto the segment canvas
+                segmentCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+            };
+            img.src = URL.createObjectURL(imageBlob);
+
+            progressRect.appendChild(segmentCanvas);
+
+            // Update the filled width of the progress bar visually
+            const filledWidthPercentage = (currentRotation / TARGET_ROTATION_DEGREES) * 100;
+            progressRect.style.width = `${filledWidthPercentage}%`;
+        }
+
+        // --- Orientation Handling ---
+        function handleOrientation(event) {
+            if (!isCapturing || !event.alpha || !event.beta || !event.gamma) return;
+
+            const alpha = event.alpha; // Rotation around Z axis (left-right turn)
+            const beta = event.beta;   // Rotation around X axis (up-down tilt)
+            const gamma = event.gamma; // Rotation around Y axis (left-right tilt)
+            const timestamp = performance.now();
+
+            // Initialize on first reading after capture starts
+            if (initialAlpha === null) {
+                initialAlpha = alpha;
+                lastAlpha = alpha;
+                lastTimestamp = timestamp;
+                // Update instructions based on initial tilt
+                updateTiltIndicator(beta);
+                return;
+            }
+
+            // Calculate rotation delta
+            let deltaAlpha = alpha - lastAlpha;
+
+            // Handle angle wrap-around (e.g., 359 -> 1 degree)
+            if (deltaAlpha > 180) deltaAlpha -= 360;
+            if (deltaAlpha < -180) deltaAlpha += 360;
+
+            const deltaTime = timestamp - lastTimestamp;
+            const rotationSpeed = Math.abs(deltaAlpha) / (deltaTime / 1000); // Degrees per second
+
+            // Update speed indicator
+            updateSpeedIndicator(rotationSpeed);
+
+            // Update tilt indicator
+            updateTiltIndicator(beta);
+
+            // Check if we need to capture a new segment
+            const requiredRotationForNextSegment = (TARGET_ROTATION_DEGREES - currentRotation) / (numSegments - capturedImages.length / (TARGET_ROTATION_DEGREES / TARGET_ROTATION_DEGREES)); // Rough estimate, needs refinement
+            // Simplified: Check if we've rotated enough since the *last capture* trigger
+            const anglePerCapture = TARGET_ROTATION_DEGREES / numSegments;
+            let rotationSinceLastCapture = alpha - (lastAlpha ?? initialAlpha); // Use lastAlpha if available
+
+            // Adjust for wrap-around relative to the starting point or last capture point
+            if (lastAlpha !== null) {
+                 rotationSinceLastCapture = alpha - lastAlpha;
+                 if (rotationSinceLastCapture > 180) rotationSinceLastCapture -= 360;
+                 if (rotationSinceLastCapture < -180) rotationSinceLastCapture += 360;
+            } else {
+                rotationSinceLastCapture = alpha - initialAlpha;
+                 if (rotationSinceLastCapture > 180) rotationSinceLastCapture -= 360;
+                 if (rotationSinceLastCapture < -180) rotationSinceLastCapture += 360;
+            }
+
+            // Use the cumulative rotation for progress calculation
+            let cumulativeRotation = currentRotation + deltaAlpha; // This isn't quite right, needs careful handling of initial alpha and wrap-around.
+
+            // Let's recalculate based on the first 'initialAlpha'
+            let currentAbsoluteRotation = alpha - initialAlpha;
+            if (currentAbsoluteRotation > 180) currentAbsoluteRotation -= 360;
+            if (currentAbsoluteRotation < -180) currentAbsoluteRotation += 360;
+            // Ensure it's always positive for 0-360 range if needed, or handle negatives
+            currentAbsoluteRotation = (currentAbsoluteRotation + 360) % 360; // Keep between 0-360
+
+            // --- Capture Condition ---
+            // Capture if enough rotation has occurred since the last *actual capture*
+            // and if the speed is acceptable.
+            // We need to track the angle relative to the *previous capture point*.
+            let angleSinceLastCaptureTrigger = 0;
+            if (capturedImages.length > 0) {
+                 // Get the alpha value from the last captured image (need to store this)
+                 // For now, let's use lastAlpha as a proxy
+                 angleSinceLastCaptureTrigger = alpha - lastAlpha;
+                 if (angleSinceLastCaptureTrigger > 180) angleSinceLastCaptureTrigger -= 360;
+                 if (angleSinceLastCaptureTrigger < -180) angleSinceLastCapture += 360;
+                 angleSinceLastCaptureTrigger = Math.abs(angleSinceLastCaptureTrigger);
+            } else {
+                // For the very first capture after the initial one
+                angleSinceLastCaptureTrigger = Math.abs(alpha - initialAlpha);
+                 if (angleSinceLastCaptureTrigger > 180) angleSinceLastCaptureTrigger -= 360;
+                 if (angleSinceLastCaptureTrigger < -180) angleSinceLastCaptureTrigger += 360;
+                 angleSinceLastCaptureTrigger = Math.abs(angleSinceLastCaptureTrigger);
+            }
+
+            // The condition to capture the next image:
+            // 1. We haven't captured all required segments yet.
+            // 2. The rotation since the last capture trigger is >= the angle needed for the next segment.
+            // 3. The speed is below the threshold.
+            const thresholdForNextSegment = (TARGET_ROTATION_DEGREES / numSegments) * (capturedImages.length + 1) - currentRotation;
+
+            // Let's simplify the capture logic: Capture when the *cumulative* rotation crosses a segment boundary.
+            // The `currentRotation` variable should track the total degrees covered by the captured segments.
+            // We need to capture when the *current* alpha reading indicates we've passed the boundary for the next segment.
+
+            const requiredAngleForNext = (numSegments - capturedImages.length) * (TARGET_ROTATION_DEGREES / numSegments);
+            const angleDifference = currentAbsoluteRotation - currentRotation; // How much we've moved beyond the last captured segment
+
+
+            // Revised capture logic:
+            // Trigger capture if the rotation since the START exceeds the midpoint between segments
+            // AND the speed is okay.
+            const segmentBoundary = (capturedImages.length + 1) * (TARGET_ROTATION_DEGREES / numSegments);
+            const isPastSegmentBoundary = currentAbsoluteRotation >= segmentBoundary;
+            const isFastEnoughRotation = angleSinceLastCaptureTrigger >= (TARGET_ROTATION_DEGREES / numSegments); // Ensure minimum movement
+
+
+            if (isFastEnoughRotation && rotationSpeed < MAX_SPEED_DPS && capturedImages.length < numSegments) {
+                // Capture the frame
+                captureFrameAsBlob().then(blob => {
+                    if (blob) {
+                        capturedImages.push(blob);
+                        updateProgressIndicator(blob);
+                        currentRotation = currentAbsoluteRotation; // Update cumulative rotation
+                        lastAlpha = alpha; // Store this alpha for next delta calculation
+                        lastTimestamp = timestamp;
+
+                        // Check for completion
+                        if (capturedImages.length >= numSegments) {
+                           // Ensure we capture a final segment even if slightly short of 360
+                           // Check if total rotation is close enough
+                           if (currentRotation >= TARGET_ROTATION_DEGREES - (TARGET_ROTATION_DEGREES / numSegments) / 2) {
+                              endCapture();
+                           } else {
+                               // Maybe capture one more if not fully covered?
+                               // For now, assume numSegments is enough.
+                           }
+                        }
+                    }
+                });
+            } else if (rotationSpeed >= MAX_SPEED_DPS) {
+                 // Already handled by speed indicator update
+            }
+
+             // Update lastAlpha and lastTimestamp regardless of capture trigger
+            lastAlpha = alpha;
+            lastTimestamp = timestamp;
+        }
+
+        function updateTiltIndicator(beta) {
+            let className = '';
+            let instructionText = '';
+            let tiltValue = beta; // beta is pitch, 0 is horizontal, positive is up, negative is down
+
+            if (tiltValue < -TILT_DANGER_THRESHOLD || tiltValue > TILT_DANGER_THRESHOLD) {
+                className = 'tilt-danger';
+                 instructionText = tiltValue < 0 ? 'Point phone DOWN more' : 'Point phone UP more';
+            } else if (tiltValue < -TILT_WARNING_THRESHOLD || tiltValue > TILT_WARNING_THRESHOLD) {
+                className = 'tilt-warning';
+                 instructionText = tiltValue < 0 ? 'Point phone down slightly' : 'Point phone up slightly';
+            } else {
+                 instructionText = 'Keep phone level';
+            }
+
+            tiltIndicator.className = className; // Apply danger/warning class
+            tiltIndicator.querySelector('span').textContent = instructionText;
+
+            // Optionally, visually indicate the tilt level within the indicator
+            // For simplicity, we're just changing background and text
+        }
+
+        function updateSpeedIndicator(speed) {
+            const speedLimit = MAX_SPEED_DPS;
+            const percentage = Math.min(speed / speedLimit, 1); // Cap at 100%
+
+            speedMeter.style.width = `${percentage * 100}%`;
+            speedIndicatorText.textContent = `${Math.round(speed)}°/s`;
+
+            if (speed > speedLimit) {
+                speedMeter.style.backgroundColor = '#dc3545'; // Red
+            } else if (speed > speedLimit * 0.7) {
+                speedMeter.style.backgroundColor = '#ffc107'; // Amber
+            } else {
+                speedMeter.style.backgroundColor = '#28a745'; // Green
+            }
+        }
+
+
+        // --- Capture Flow Control ---
+        function startCaptureSequence() {
+            if (!videoStream) {
+                statusMessage.textContent = "Camera not ready. Please grant permissions.";
+                return;
+            }
+
+            isCapturing = true;
+            isRecording = true; // Start recording state
+            capturedImages = []; // Reset captures
+            initialAlpha = null; // Reset orientation tracking
+            lastAlpha = null;
+            lastTimestamp = null;
+            currentRotation = 0; // Reset cumulative rotation
+            progressRect.style.width = '0%'; // Reset progress bar visual
+            progressRect.innerHTML = ''; // Clear previous segments
+
+            startCaptureButton.disabled = true;
+            startCaptureButton.textContent = 'Capturing...';
+            finalControlsDiv.style.display = 'none'; // Hide submit/retake initially
+            instructionsText.textContent = "Rotate slowly and steadily. Aim to cover 360 degrees.";
+
+            // Prepare the high-res canvas
+            setupHighResCanvas();
+
+            // Add the first capture immediately
+            captureFrameAsBlob().then(blob => {
+                if (blob) {
+                    capturedImages.push(blob);
+                    updateProgressIndicator(blob);
+                    // Now, start listening for orientation events and the animation loop
+                    window.addEventListener('deviceorientation', handleOrientation, true);
+                    animationFrameId = requestAnimationFrame(captureLoop);
+                    statusMessage.textContent = 'Start rotating!';
+                } else {
+                     isCapturing = false;
+                     statusMessage.textContent = "Failed to capture initial frame.";
+                     startCaptureButton.disabled = false;
+                     startCaptureButton.textContent = 'Start Capture';
+                }
+            });
+        }
+
+        function captureLoop() {
+            if (!isCapturing) {
+                return; // Stop the loop if capture is stopped
+            }
+
+            // Handle orientation updates (this is where the core logic resides)
+            // The handleOrientation function updates state and triggers captures
+            // We don't need to draw the video frame here again unless debugging
+
+            // Request the next frame
+            animationFrameId = requestAnimationFrame(captureLoop);
+        }
+
+        function endCapture() {
+            isCapturing = false; // Stop the capture loop
+            isRecording = false;
+            window.removeEventListener('deviceorientation', handleOrientation, true);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            startCaptureButton.disabled = true;
+            startCaptureButton.textContent = 'Capture Complete';
+            finalControlsDiv.style.display = 'block'; // Show submit/retake
+            instructionsText.textContent = "Capture complete! Review and submit, or retake.";
+            statusMessage.textContent = 'Capture finished!';
+
+             // Ensure the progress bar visually completes if slightly short
+            const finalFilledWidth = Math.min((currentRotation / TARGET_ROTATION_DEGREES) * 100, 100);
+            progressRect.style.width = `${finalFilledWidth}%`;
+        }
+
+        function submitCapture() {
+            if (capturedImages.length === 0) {
+                statusMessage.textContent = "No images captured yet.";
+                return;
+            }
+
+            statusMessage.textContent = 'Uploading images...';
+            submitCaptureButton.disabled = true;
+            retakeCaptureButton.disabled = true;
+
+            const formData = new FormData();
+            capturedImages.forEach((blob, index) => {
+                // Generate filename, e.g., capture_001.jpg
+                const filename = `capture_${String(index).padStart(3, '0')}.${IMAGE_FORMAT.split('/')[1]}`;
+                formData.append('images', blob, filename);
+            });
+
+            // Add metadata if needed (e.g., total rotation achieved, number of images)
+            formData.append('totalRotation', currentRotation);
+            formData.append('numberOfImages', capturedImages.length);
+
+            fetch(UPLOAD_URL, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json(); // or response.text() depending on server response
+                } else {
+                    throw new Error(`Server responded with status ${response.status}`);
+                }
+            })
+            .then(data => {
+                console.log('Upload successful:', data);
+                statusMessage.textContent = 'Upload successful!';
+                // Optionally clear captures or navigate away
+                // resetAppState(); // Example: reset if needed
+            })
+            .catch(error => {
+                console.error('Upload failed:', error);
+                statusMessage.textContent = `Upload failed: ${error.message}`;
+                submitCaptureButton.disabled = false; // Re-enable on failure
+                retakeCaptureButton.disabled = false;
+            });
+        }
+
+        function retakeCapture() {
+            // Stop any ongoing capture process
+            isCapturing = false;
+            isRecording = false;
+            window.removeEventListener('deviceorientation', handleOrientation, true);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            // Reset state
+            capturedImages = [];
+            initialAlpha = null;
+            lastAlpha = null;
+            lastTimestamp = null;
+            currentRotation = 0;
+
+            // Reset UI
+            progressRect.innerHTML = '';
+            progressRect.style.width = '0%';
+            tiltIndicator.className = ''; // Reset classes
+            tiltIndicator.querySelector('span').textContent = 'Aim slightly down';
+            speedMeter.style.width = '0%';
+            speedIndicatorText.textContent = '0°/s';
+            statusMessage.textContent = '';
+
+            startCaptureButton.disabled = false;
+            startCaptureButton.textContent = 'Start Capture';
+            finalControlsDiv.style.display = 'none';
+
+            instructionsText.textContent = "Find a feature to start with (like a desk or chair). Hold your phone vertically. Tap 'Start Capture' when ready.";
+        }
+
+        // --- Initialization ---
+        function init() {
+            // Check for necessary APIs
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.DeviceOrientationEvent) {
+                statusMessage.textContent = "This browser does not support required features (Camera API or Device Orientation).";
+                startCaptureButton.disabled = true;
+                return;
+            }
+
+            // Calculate segment width based on container size once rendered
+            // We'll recalculate dynamically in updateProgressIndicator as container might resize
+            // segmentWidthPx = progressRect.offsetWidth / numSegments;
+
+            // Request permissions on load or button click
+            startCaptureButton.disabled = true; // Disable until permissions granted
+            startCaptureButton.textContent = 'Requesting Permissions...';
+            requestPermissions().then(success => {
+                if (!success) {
+                    // Error message already displayed by requestPermissions
+                }
+            });
+
+            // Add event listeners
+            startCaptureButton.addEventListener('click', startCaptureSequence);
+            submitCaptureButton.addEventListener('click', submitCapture);
+            retakeCaptureButton.addEventListener('click', retakeCapture);
+        }
+
+        // Initialize the app when the DOM is ready
+        document.addEventListener('DOMContentLoaded', init);
+
+    </script>
+
+</body>
+</html>
