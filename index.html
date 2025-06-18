@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>360 Room Scan</title>
     <style>
+        /* CSS is unchanged */
         :root {
             --primary-bg: #FFFFFF; --secondary-bg: #EAEAF0; --camera-bg: #C5C6E0; --accent-color: #007BFF;
             --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0; --aligned-color: #28a745;
@@ -19,16 +20,10 @@
         .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
         .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
         .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.05s linear; }
-        
-        /* (T) Target styling */
         #target-svg { transform: translate(-50%, -50%); }
-        #target-svg path { fill: var(--target-color-light); }
-        
-        /* (AH) Helper styling */
-        /* FIX 1: Add scale(0.8) to make the helper 80% of its original size */
         #helper-svg { transform: translate(-50%, -50%) scale(0.8); }
+        #target-svg path { fill: var(--target-color-light); }
         #helper-svg path { fill: var(--error-color); transition: fill 0.2s ease-in-out; }
-
         .control-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px; }
         .control-button { width: 100%; padding: 16px 10px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.1s ease-out; border-style: solid; border-width: 1px; }
         .control-button:disabled { background-color: var(--disabled-color); color: #FFF; border-color: #999; box-shadow: none; cursor: not-allowed; }
@@ -48,7 +43,6 @@
         <header class="app-header">360 Room Scan</header>
         <div class="main-content">
             <div class="camera-view-container"><div class="camera-view" id="camera-view">
-                <!-- FIX 2: Target (T) is now first, so it renders *underneath* the Helper (AH) -->
                 <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
                 <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
             </div></div>
@@ -66,7 +60,6 @@
     </div>
 
     <script>
-        // JavaScript is unchanged, the fixes were in HTML and CSS.
         document.addEventListener('DOMContentLoaded', () => {
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
@@ -74,7 +67,11 @@
             const appStatus = document.getElementById('app-status');
             
             let isAligned = false, alignmentTimer = null;
-            const ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
+
+            // THE FIX: Doubled the tolerance to make alignment easier.
+            const ALIGNMENT_TOLERANCE = 8; 
+            
+            const ALIGNMENT_HOLD_TIME = 1000;
             const TARGET_PITCH = 80;
 
             let smoothedRoll = 0;
@@ -109,8 +106,7 @@
                 if (beta <= TARGET_PITCH) {
                     const progress = beta / TARGET_PITCH;
                     yTranslatePercent = -50 + (progress * 50);
-                } 
-                else {
+                } else {
                     const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH);
                     yTranslatePercent = progress * 50;
                 }
