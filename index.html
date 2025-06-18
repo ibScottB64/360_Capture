@@ -12,11 +12,15 @@
             --camera-bg: #C5C6E0;
             --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
-            /* Corrected and simplified color variables */
             --target-color-light: #A3E635; /* Light Green */
             --helper-color-dark: #4D7C0F;  /* Dark Green */
             --text-color: #333333;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            
+            /* Define heights for robust layout calculation */
+            --header-height: 55px;
+            --status-height: 55px;
+            --progress-height: 70px;
         }
 
         html, body {
@@ -29,37 +33,46 @@
             background-color: var(--secondary-bg);
         }
 
-        /* --- Main App Container --- */
+        /* --- REVISED: Absolute Positioning Layout for Robustness --- */
         .app-container {
-            display: flex;
-            flex-direction: column;
+            position: relative; /* Context for absolute children */
             width: 100%;
             max-width: 480px;
-            height: 100dvh;
+            height: 100vh;
             margin: 0 auto;
             background-color: var(--primary-bg);
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
 
-        /* --- Header --- */
+        /* --- Header (Locked to Top) --- */
         .app-header {
-            flex-shrink: 0;
-            padding: 14px;
-            text-align: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.3rem;
             font-weight: 600;
             border-bottom: 1px solid var(--secondary-bg);
+            box-sizing: border-box;
         }
 
-        /* --- Main Content --- */
+        /* --- Main Content (Fills the Middle Space) --- */
         .main-content {
-            flex-shrink: 0;
+            position: absolute;
+            top: var(--header-height);
+            bottom: calc(var(--progress-height) + var(--status-height));
+            width: 100%;
             display: flex;
             padding: 12px;
             gap: 12px;
+            box-sizing: border-box;
         }
-
-        /* --- Camera View --- */
+        
+        /* --- Camera View (No changes, aspect ratio is preserved) --- */
         .camera-view-container {
             flex-grow: 1;
             position: relative;
@@ -76,35 +89,29 @@
             width: 100%; height: 100%;
             background-color: var(--camera-bg);
             border-radius: 8px;
-            position: relative;
             overflow: hidden;
         }
-        
-        /* --- REVISED: Alignment Elements --- */
-        /* Common style for both Target and Helper SVG wrappers */
+
+        /* --- REVISED & RELIABLE: Alignment Elements --- */
         .alignment-svg {
             position: absolute;
             top: 50%;
             left: 50%;
-            /* CHANGE: Size is now 50% of the camera view */
-            width: 50%; 
+            width: 50%;
             height: auto;
-            transform: translate(-50%, -50%); /* Default centering */
         }
-
-        /* Specific style for the Target (light green, in the center) */
         #target-svg {
-            fill: var(--target-color-light);
+            transform: translate(-50%, -50%);
         }
-
-        /* Specific style for the Helper (dark green, slightly offset for demo) */
         #helper-svg {
-            fill: var(--helper-color-dark);
-            /* CHANGE: Intentionally offset to show both layers */
-            transform: translate(-45%, -55%); 
+            transform: translate(-45%, -55%); /* Offset for visibility */
         }
-
-        /* --- Control Panel --- */
+        
+        /* FIX: Directly target the path for fill color */
+        #target-svg path { fill: var(--target-color-light); }
+        #helper-svg path { fill: var(--helper-color-dark); }
+        
+        /* --- Control Panel (No changes needed) --- */
         .control-panel {
             flex-shrink: 0;
             display: flex;
@@ -130,14 +137,18 @@
             box-shadow: 0 2px 0 0 #004a99;
         }
 
-        .spacer { flex-grow: 1; }
-
-        /* --- Progress Display --- */
+        /* --- Progress Display (Locked above Status) --- */
         .progress-display {
-            flex-shrink: 0;
+            position: absolute;
+            bottom: var(--status-height);
+            left: 0;
+            width: 100%;
+            height: var(--progress-height);
             display: flex;
+            align-items: center;
             gap: 8px;
-            padding: 0 12px 12px 12px;
+            padding: 0 12px;
+            box-sizing: border-box;
             overflow-x: auto;
         }
         .progress-frame {
@@ -150,14 +161,20 @@
         }
         .progress-frame.captured { background-color: var(--camera-bg); }
 
-        /* --- Application Status --- */
+        /* --- Application Status (Locked to Bottom) --- */
         .app-status {
-            flex-shrink: 0;
-            padding: 16px;
-            text-align: center;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--status-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.3rem;
             font-weight: 500;
             border-top: 1px solid var(--secondary-bg);
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -172,12 +189,11 @@
         <div class="main-content">
             <div class="camera-view-container">
                 <div class="camera-view">
-                    <!-- REVISED AND SIMPLIFIED HTML STRUCTURE -->
                     <!-- The Target 'A' (light green, stationary center) -->
                     <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100">
                         <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
                     </svg>
-                    <!-- The Helper 'A' (dark green, moves with phone, offset for demo) -->
+                    <!-- The Helper 'A' (dark green, moves with phone) -->
                     <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100">
                         <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
                     </svg>
@@ -189,8 +205,6 @@
                 <button class="control-button" id="submit-btn">Submit</button>
             </div>
         </div>
-
-        <div class="spacer"></div>
 
         <div class="progress-display">
             <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
@@ -208,7 +222,7 @@
     </div>
 
     <script>
-        // Phase 1 (Static UI) is complete.
+        // Static UI foundation is now stable.
     </script>
 
 </body>
