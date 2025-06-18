@@ -8,11 +8,12 @@
         /* --- Basic Setup & Theming --- */
         :root {
             --primary-bg: #FFFFFF;
-            --secondary-bg: #EAEAF0; /* Light gray for background elements */
-            --camera-bg: #C5C6E0; /* Light purple from mockup */
-            --accent-color: #007BFF; /* A standard blue for buttons */
+            --secondary-bg: #EAEAF0;
+            --camera-bg: #C5C6E0;
+            --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
-            --success-color: #28A745; /* Green for target */
+            --success-color: #28A745; /* Green for helper */
+            --target-color: rgba(51, 51, 51, 0.35); /* Semi-transparent gray for target */
             --text-color: #333333;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
@@ -22,75 +23,95 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden; /* Critical: Prevents scrolling */
+            overflow: hidden;
             font-family: var(--font-family);
             background-color: var(--secondary-bg);
+            color: var(--text-color);
+        }
+        
+        /* --- Page Title (outside the app) --- */
+        .page-title {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            padding: 15px 10px 5px 10px;
         }
 
         /* --- Main App Container --- */
-        /* This container simulates the phone screen and holds the entire UI */
         .app-container {
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-width: 450px; /* Looks good on desktop, full-width on mobile */
-            height: 100dvh; /* Dynamic Viewport Height: accounts for mobile browser UI */
+            max-width: 450px;
+            height: calc(100dvh - 65px); /* Adjust height to account for title */
             margin: 0 auto;
             background-color: var(--primary-bg);
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+            border: 1px solid #DDD;
         }
 
         /* --- Header --- */
         .app-header {
             padding: 12px;
             text-align: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: var(--text-color);
+            font-size: 1.4rem;
+            font-weight: 600;
             border-bottom: 1px solid var(--secondary-bg);
         }
 
         /* --- Main Content Layout --- */
-        /* This area holds the camera view and the side control panel */
         .main-content {
-            flex-grow: 1; /* Takes up all available vertical space */
+            flex-grow: 1;
             display: flex;
             padding: 10px;
             gap: 10px;
-            min-height: 0; /* Prevents flex children from overflowing */
+            min-height: 0;
         }
 
-        /* --- Camera View and its child elements --- */
+        /* --- Camera View --- */
         .camera-view {
             flex-grow: 1;
-            position: relative; /* For positioning the target overlay */
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
             background-color: var(--camera-bg);
             border-radius: 8px;
-            overflow: hidden; /* In case any child elements try to escape */
+            overflow: hidden;
+            /* CHANGE: Enforce a 4:3 aspect ratio (portrait) */
+            aspect-ratio: 3 / 4;
         }
         
-        .target {
-            /* This is the green 'A' the user aligns with */
-            width: 80px;
-            height: 80px;
-            background-color: var(--success-color);
-            color: var(--accent-text-color);
-            font-size: 4rem;
-            font-weight: bold;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: 8px;
-            /* In a live app, this would be moved by device orientation */
+        .alignment-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px; /* Controls the overall size of the target/helper */
+            height: 100px;
         }
         
-        /* The alignment helper is hidden in this static view but would be styled similarly */
-        .alignment-helper {
-            display: none; 
-            /* It would be positioned absolutely and change color/opacity */
+        /* The SVG 'A' used for both target and helper */
+        .alignment-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* NEW: The stationary target outline */
+        #alignment-target .icon-a {
+            fill: transparent;
+            stroke: var(--target-color);
+            stroke-width: 14; /* Creates a thick, bold outline */
+            stroke-linejoin: round;
+        }
+
+        /* NEW: The solid helper that moves with the phone */
+        #alignment-helper .icon-a {
+            fill: var(--success-color);
+            stroke: none;
         }
 
         /* --- Control Panel (Side buttons) --- */
@@ -105,42 +126,55 @@
             padding: 15px 10px;
             font-size: 1.1rem;
             font-weight: bold;
-            border: none;
+            border: 1px solid #B0B0B0;
             border-radius: 8px;
             cursor: pointer;
-            background-color: var(--accent-color);
-            color: var(--accent-text-color);
-            transition: background-color 0.2s;
+            background-color: var(--secondary-bg);
+            color: var(--text-color);
+            transition: all 0.1s ease-out;
+            /* CHANGE: Add shadow for "push button" effect */
+            box-shadow: 0 4px 0 #B0B0B0;
         }
 
-        .control-button:hover {
-            background-color: #0056b3;
+        .control-button:active {
+            /* CHANGE: Makes the button look like it's being pressed */
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #B0B0B0;
         }
         
-        /* The main Start/Pause button would be here or overlayed in other states */
-        .main-action-button {
-            display: none; /* Hidden in the "Complete" state */
+        #submit-btn {
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
+            border-color: #0056b3;
+            box-shadow: 0 4px 0 #0056b3;
         }
+        #submit-btn:active {
+            box-shadow: 0 2px 0 #0056b3;
+        }
+
 
         /* --- Progress Display --- */
         .progress-display {
             display: flex;
-            gap: 5px;
+            flex-wrap: wrap; /* Allows thumbnails to wrap if needed on small screens */
+            gap: 6px;
             padding: 10px;
-            background-color: var(--secondary-bg);
-            border-radius: 8px;
-            margin: 0 10px; /* Align with main content padding */
+            margin: 0 10px;
         }
 
         .progress-frame {
+            flex-basis: calc(16.666% - 5px); /* Aim for 6 per row */
             flex-grow: 1;
-            height: 15px;
-            background-color: #D0D0D0; /* Empty frame color */
+            background-color: var(--secondary-bg);
             border-radius: 4px;
+            border: 1px solid #CCC;
+            /* CHANGE: Match the camera's aspect ratio */
+            aspect-ratio: 3 / 4; 
         }
 
         .progress-frame.captured {
-            background-color: #A0A0C0; /* Filled frame color */
+            /* For this static view, we'll just color them in. Later they'll have image backgrounds. */
+            background-color: #A0A0C0;
         }
 
         /* --- Application Status --- */
@@ -149,12 +183,22 @@
             text-align: center;
             font-size: 1.3rem;
             font-weight: 500;
-            color: var(--text-color);
         }
     </style>
 </head>
 <body>
 
+    <!-- SVG definition for the 'A' icon. Placed here to be reusable. -->
+    <svg width="0" height="0" style="position:absolute">
+      <defs>
+        <symbol id="svg-a" viewBox="0 0 100 100">
+            <path class="icon-a" d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <h1 class="page-title">360 ROOM<br>SCAN INSTRUCTIONS</h1>
+    
     <div class="app-container">
         
         <header class="app-header">
@@ -163,20 +207,29 @@
 
         <div class="main-content">
             <div class="camera-view">
-                <!-- In a live app, this would show the camera stream -->
-                <div class="target">A</div>
-                <!-- The alignment helper 'A' would also be here, moving with the phone -->
+                <!-- In a live app, a <video> element would be the first child here -->
+                
+                <div class="alignment-container">
+                    <!-- The stationary target 'A' outline -->
+                    <svg id="alignment-target" class="alignment-svg">
+                        <use xlink:href="#svg-a"></use>
+                    </svg>
+
+                    <!-- The movable 'A' that aligns with the target. JS will move this. -->
+                    <svg id="alignment-helper" class="alignment-svg">
+                        <use xlink:href="#svg-a"></use>
+                    </svg>
+                </div>
             </div>
 
             <div class="control-panel">
-                <!-- These buttons are shown in the "Complete" state -->
                 <button class="control-button" id="rescan-btn">Rescan</button>
                 <button class="control-button" id="submit-btn">Submit</button>
             </div>
         </div>
 
         <div class="progress-display">
-            <!-- Simulating a nearly complete scan -->
+            <!-- 12 frames, simulating a full 360-degree scan (30 degrees per shot) -->
             <div class="progress-frame captured"></div>
             <div class="progress-frame captured"></div>
             <div class="progress-frame captured"></div>
@@ -188,7 +241,7 @@
             <div class="progress-frame captured"></div>
             <div class="progress-frame captured"></div>
             <div class="progress-frame captured"></div>
-            <div class="progress-frame"></div> <!-- One empty slot -->
+            <div class="progress-frame captured"></div>
         </div>
 
         <footer class="app-status">
@@ -198,40 +251,8 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("360 Room Scan UI Loaded. Static version 1.0.");
-
-            // --- PHASE 1 COMPLETE ---
-            // This is a static representation. The sections below are placeholders
-            // for the functionality we will build in the next phases.
-
-            // --- TODO: PHASE 2 (Pre-Scan Alignment) ---
-            // 1. Access device orientation sensors (DeviceOrientationEvent).
-            // 2. Get user permission for sensors.
-            // 3. Update the 'Alignment Helper' position and color based on sensor data.
-            // 4. Change the 'Start' button from disabled to enabled when aligned.
-            // 5. Handle cases where sensor access is denied or not available.
-
-            // --- TODO: PHASE 3 (Scanning Process) ---
-            // 1. On 'Start', get user permission for the camera (`getUserMedia`).
-            // 2. Stream the camera feed to a <video> element (to be placed inside .camera-view).
-            // 3. Implement the scanning loop:
-            //    - Guide user to the next capture angle (e.g., "turn right").
-            //    - When the phone is aligned correctly, automatically capture a frame from the video stream.
-            //    - Draw the captured frame to a canvas to create a JPEG blob.
-            //    - Store the blob (e.g., in an array or IndexedDB).
-            //    - Update the .progress-display to show the new captured frame.
-            //    - "Flash" the screen white to indicate a successful capture.
-            // 4. Implement 'Pause' and 'Rescan' functionality.
-            
-            // --- TODO: PHASE 4 (Submission) ---
-            // 1. On 'Submit', iterate through all the stored image blobs.
-            // 2. As per our discussion, upload each image individually as a JPEG.
-            // 3. Use the Fetch API to send POST requests to the (yet to be defined) server endpoint.
-            // 4. Show an uploading progress indicator.
-            // 5. Handle successful upload and any potential network errors.
-
-        });
+        // No changes to JavaScript yet. All updates are in HTML and CSS.
+        // The placeholder comments for future phases are still valid.
     </script>
 
 </body>
