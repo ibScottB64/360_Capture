@@ -61,25 +61,23 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Elements and Config ---
+            // --- Elements and Config (unchanged) ---
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
-            const cameraView = document.getElementById('camera-view');
             const startBtn = document.getElementById('start-btn');
             const appStatus = document.getElementById('app-status');
-            const permissionOverlay = document.getElementById('permission-overlay');
-            const permissionBtn = document.getElementById('permission-button');
-            const permissionError = document.getElementById('permission-error');
             
             let isAligned = false, alignmentTimer = null;
             const ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
             const TARGET_PITCH = 80;
-            const PITCH_SENSITIVITY = 3.5; 
 
             let smoothedRoll = 0;
             const SMOOTHING_FACTOR = 0.1;
 
             // --- Permission Handling (unchanged) ---
+            const permissionOverlay = document.getElementById('permission-overlay');
+            const permissionBtn = document.getElementById('permission-button');
+            const permissionError = document.getElementById('permission-error');
             function startListening() { window.addEventListener('deviceorientation', handleOrientation); permissionOverlay.classList.add('hidden'); }
             function handlePermission() {
                 if (navigator.permissions && typeof navigator.permissions.query === 'function') {
@@ -103,32 +101,35 @@
                 let { beta, gamma } = event; // pitch, roll
                 if (beta === null || gamma === null) return;
                 
-                const pitchOffset = beta - TARGET_PITCH;
-                const rollOffset = gamma;
+                // --- 1. Calculate Y-axis position using ABSOLUTE mapping ---
+                const PITCH_RANGE_MIN = 0;
+                const PITCH_RANGE_MAX = 130;
+                const MAX_TRAVEL_PERCENT = 15; // Top/bottom boundary is 15% from center
+
+                // Clamp the current pitch to our defined range
+                const clampedBeta = Math.max(PITCH_RANGE_MIN, Math.min(PITCH_RANGE_MAX, beta));
+
+                // Calculate the progress (0.0 to 1.0) through the pitch range
+                const progress = (clampedBeta - PITCH_RANGE_MIN) / (PITCH_RANGE_MAX - PITCH_RANGE_MIN);
+
+                // Map the progress to the output position range [-15%, +15%]
+                const yMovementPercent = -MAX_TRAVEL_PERCENT + (progress * (MAX_TRAVEL_PERCENT * 2));
                 
-                // --- 1. Calculate Y-axis movement (unchanged) ---
-                const max_y_percent = 15;
-                let yMovement = pitchOffset * PITCH_SENSITIVITY;
-                const cameraHeight = cameraView.offsetHeight;
-                let yMovementPercent = cameraHeight > 0 ? (yMovement / cameraHeight) * 100 : 0;
-                yMovementPercent = Math.max(-max_y_percent, Math.min(max_y_percent, yMovementPercent));
-                
-                // --- 2. Calculate dynamic rotation ---
-                smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (rollOffset * SMOOTHING_FACTOR);
-                
-                // THE FIX: Calculate a scaling factor for rotation based on pitch.
-                // Clamp pitch for this calculation to the 0-80 range.
+                // --- 2. Calculate dynamic rotation (unchanged) ---
+                smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
                 const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
-                // Linear interpolation: scale = 1.0 at pitch 0, and 0.2 at pitch 80.
                 const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
-                
                 const finalRotation = -smoothedRoll * rotationScale;
 
-                // --- 3. Apply the transform with both position and rotation ---
-                targetSVG.style.transform = `translate(-50%, calc(-50% + ${yMovementPercent}%)) rotate(${finalRotation}deg)`;
+                // --- 3. Apply the transform ---
+                targetSVG.style.transform = `translate(-50%, ${yMovementPercent}%) rotate(${finalRotation}deg)`;
 
-                // --- 4. Update UI (unchanged) ---
+                // --- 4. Update UI based on the GOAL (TARGET_PITCH) ---
+                // The misalignment check is still relative to our 80-degree target
+                const pitchOffset = beta - TARGET_PITCH;
+                const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
+                
                 helperSVGPath.style.fill = getAlignmentColor(misalignment);
                 
                 if (misalignment < ALIGNMENT_TOLERANCE) {
@@ -142,8 +143,8 @@
             }
 
             function getAlignmentColor(misalignment) {
-                if (misalignment < ALIGNMENT_TOLERANCE) return 'var(--aligned-color)';
-                else if (misalignment < ALIGNMENT_TOLERANCE * 5) return 'var(--warn-color)';
+                if (misalignment < ALIGN_TOLERANCE) return 'var(--aligned-color)';
+                else if (misalignment < ALIGN_TOLERANCE * 5) return 'var(--warn-color)';
                 else return 'var(--error-color)';
             }
 
