@@ -19,9 +19,9 @@
         .camera-view-container { flex-grow: 1; position: relative; min-width: 0; }
         .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
         .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
-        .alignment-svg { position: absolute; left: 50%; width: 70%; height: auto; transition: top 0.05s linear, transform 0.05s linear; }
-        #target-svg { top: 50%; transform: translate(-50%, -50%); }
-        #helper-svg { top: 50%; transform: translate(-50%, -50%); }
+        .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.05s linear; }
+        #target-svg { transform: translate(-50%, -50%); }
+        #helper-svg { transform: translate(-50%, -50%); }
         #target-svg path { fill: var(--target-color-light); }
         #helper-svg path { fill: var(--error-color); transition: fill 0.2s ease-in-out; }
         .control-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px; }
@@ -61,7 +61,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const cameraView = document.getElementById('camera-view');
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
             const startBtn = document.getElementById('start-btn');
@@ -100,37 +99,35 @@
             function handleOrientation(event) {
                 let { beta, gamma } = event;
                 if (beta === null || gamma === null) return;
-                
-                // --- 1. Calculate Y-axis position using Piecewise Linear Mapping ---
-                const viewHeight = cameraView.offsetHeight;
-                const targetHeight = targetSVG.offsetHeight;
-                let yPos = 0; // This will be the final Y coordinate for the center of the target
 
-                if (beta <= TARGET_PITCH) {
-                    // Map pitch from [0, 80] to position [top_edge, center]
-                    const progress = beta / TARGET_PITCH;
-                    const topEdge = targetHeight / 2;
-                    const center = viewHeight / 2;
-                    yPos = topEdge + progress * (center - topEdge);
-                } else {
-                    // Map pitch from [80, 180] to position [center, bottom_edge]
-                    const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH);
-                    const center = viewHeight / 2;
-                    const bottomEdge = viewHeight - (targetHeight / 2);
-                    yPos = center + progress * (bottomEdge - center);
-                }
+                // --- THE FIX: A robust, percentage-based calculation ---
+                let yTranslatePercent = 0;
                 
-                // --- 2. Calculate dynamic rotation ---
+                // Stage 1: From flat (0) to target (80), move from top edge (-50%) to center (0%).
+                if (beta <= TARGET_PITCH) {
+                    const progress = beta / TARGET_PITCH;
+                    yTranslatePercent = -50 + (progress * 50);
+                } 
+                // Stage 2: From target (80) to upside-down (180), move from center (0%) to bottom edge (+50%).
+                else {
+                    const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH);
+                    yTranslatePercent = progress * 50;
+                }
+
+                // Clamp the final value to prevent over-travel
+                yTranslatePercent = Math.max(-50, Math.min(50, yTranslatePercent));
+                
+                // --- Calculate dynamic rotation (unchanged) ---
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
                 const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
                 const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
                 const finalRotation = -smoothedRoll * rotationScale;
 
-                // --- 3. Apply styles ---
-                targetSVG.style.top = `${yPos}px`;
-                targetSVG.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg)`;
+                // --- Apply transform ---
+                // The transform starts at a base of (-50%, -50%) to center the element, then we add our calculated Y offset.
+                targetSVG.style.transform = `translate(-50%, calc(-50% + ${yTranslatePercent}%)) rotate(${finalRotation}deg)`;
 
-                // --- 4. Update UI based on GOAL ---
+                // --- Update UI based on GOAL ---
                 const pitchOffset = beta - TARGET_PITCH;
                 const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
@@ -139,7 +136,7 @@
                 
                 if (misalignment < ALIGNMENT_TOLERANCE) {
                     if (!isAligned && alignmentTimer === null) {
-                        alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGNMENT_HOLD_TIME);
+                        alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGN_HOLD_TIME);
                     }
                 } else {
                     if (alignmentTimer) { clearTimeout(alignmentTimer); alignmentTimer = null; }
@@ -152,6 +149,7 @@
                 else if (misalignment < ALIGNMENT_TOLERANCE * 5) return 'var(--warn-color)';
                 else return 'var(--error-color)';
             }
+
             function setAlignedState(isNowAligned) {
                 isAligned = isNowAligned;
                 startBtn.disabled = !isAligned;
