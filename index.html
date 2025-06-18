@@ -12,7 +12,9 @@
             --camera-bg: #C5C6E0;
             --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
-            --success-color: #28A745;
+            /* CHANGE: Added distinct colors for Target and Helper */
+            --target-color-light: #A3E635; /* Light Green */
+            --helper-color-dark: #4D7C0F;  /* Dark Green */
             --text-color: #333333;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
@@ -49,15 +51,15 @@
             border-bottom: 1px solid var(--secondary-bg);
         }
 
-        /* --- Main Content (No longer grows) --- */
+        /* --- Main Content --- */
         .main-content {
-            flex-shrink: 0; /* Prevent from shrinking */
+            flex-shrink: 0;
             display: flex;
             padding: 12px;
             gap: 12px;
         }
 
-        /* --- Camera View (Using Aspect Ratio Hack) --- */
+        /* --- Camera View (Now a positioning context) --- */
         .camera-view-container {
             flex-grow: 1;
             position: relative;
@@ -74,21 +76,34 @@
             width: 100%; height: 100%;
             background-color: var(--camera-bg);
             border-radius: 8px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            /* CHANGE: Now a positioning context for the stacked T and AH */
+            position: relative;
+            overflow: hidden;
         }
         
-        /* --- Target 'A' --- */
-        .target-container {
-            width: 25%;
-            max-width: 100px;
+        /* --- Alignment Elements (Target and Helper) --- */
+        .alignment-element {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            /* CHANGE: Width is now 50% of the parent camera view */
+            width: 50%;
         }
-        .target-svg {
+        .alignment-svg {
             width: 100%;
             height: auto;
-            fill: var(--success-color);
+            display: block;
         }
+        /* Color the light green target */
+        #alignment-target .icon-a {
+            fill: var(--target-color-light);
+        }
+        /* Color the dark green helper */
+        #alignment-helper .icon-a {
+            fill: var(--helper-color-dark);
+        }
+
 
         /* --- Control Panel --- */
         .control-panel {
@@ -98,7 +113,6 @@
             gap: 12px;
             width: 100px;
         }
-
         .control-button {
             width: 100%;
             padding: 16px 10px;
@@ -109,7 +123,6 @@
             transition: all 0.1s ease-out;
             border: 1px solid #0056b3;
             box-shadow: 0 5px 0 0 #0056b3;
-            /* CHANGE: Both buttons are now blue */
             background-color: var(--accent-color);
             color: var(--accent-text-color);
         }
@@ -118,7 +131,7 @@
             box-shadow: 0 2px 0 0 #004a99;
         }
 
-        /* NEW: The element that fills all leftover space */
+        /* --- Spacer --- */
         .spacer {
             flex-grow: 1;
         }
@@ -131,11 +144,10 @@
             padding: 0 12px 12px 12px;
             overflow-x: auto;
         }
-
         .progress-frame {
             flex-shrink: 0;
             height: 50px;
-            width: 37.5px; /* (50px * 3/4) */
+            width: 37.5px;
             background-color: var(--secondary-bg);
             border-radius: 4px;
             border: 1px solid #CCC;
@@ -156,6 +168,15 @@
     </style>
 </head>
 <body>
+    
+    <!-- SVG definition for the 'A' icon, defined once for reuse -->
+    <svg width="0" height="0" style="position:absolute">
+      <defs>
+        <symbol id="svg-a" viewBox="0 0 100 100">
+            <path class="icon-a" d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
+        </symbol>
+      </defs>
+    </svg>
 
     <div class="app-container">
         
@@ -166,10 +187,14 @@
         <div class="main-content">
             <div class="camera-view-container">
                 <div class="camera-view">
-                    <div class="target-container">
-                        <svg class="target-svg" viewBox="0 0 100 100">
-                            <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
-                        </svg>
+                    <!-- Target (T) - Light Green, underneath -->
+                    <div id="alignment-target" class="alignment-element">
+                        <svg class="alignment-svg"><use href="#svg-a"></use></svg>
+                    </div>
+                    <!-- Alignment Helper (AH) - Dark Green, on top -->
+                    <!-- In this static view, it perfectly covers the target -->
+                    <div id="alignment-helper" class="alignment-element">
+                        <svg class="alignment-svg"><use href="#svg-a"></use></svg>
                     </div>
                 </div>
             </div>
@@ -180,7 +205,6 @@
             </div>
         </div>
 
-        <!-- This spacer will grow to fill the available vertical space -->
         <div class="spacer"></div>
 
         <div class="progress-display">
@@ -199,7 +223,9 @@
     </div>
 
     <script>
-        // Static UI is complete. Ready for Phase 2.
+        // Phase 1 (Static UI) is complete.
+        // The HTML and CSS are now set up for Phase 2, where we will use JavaScript
+        // to move the '#alignment-helper' element based on device sensor data.
     </script>
 
 </body>
