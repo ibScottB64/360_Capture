@@ -12,7 +12,7 @@
             --camera-bg: #C5C6E0;
             --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
-            /* CHANGE: Added distinct colors for Target and Helper */
+            /* Corrected and simplified color variables */
             --target-color-light: #A3E635; /* Light Green */
             --helper-color-dark: #4D7C0F;  /* Dark Green */
             --text-color: #333333;
@@ -59,7 +59,7 @@
             gap: 12px;
         }
 
-        /* --- Camera View (Now a positioning context) --- */
+        /* --- Camera View --- */
         .camera-view-container {
             flex-grow: 1;
             position: relative;
@@ -76,34 +76,33 @@
             width: 100%; height: 100%;
             background-color: var(--camera-bg);
             border-radius: 8px;
-            /* CHANGE: Now a positioning context for the stacked T and AH */
             position: relative;
             overflow: hidden;
         }
         
-        /* --- Alignment Elements (Target and Helper) --- */
-        .alignment-element {
+        /* --- REVISED: Alignment Elements --- */
+        /* Common style for both Target and Helper SVG wrappers */
+        .alignment-svg {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            /* CHANGE: Width is now 50% of the parent camera view */
-            width: 50%;
-        }
-        .alignment-svg {
-            width: 100%;
+            /* CHANGE: Size is now 50% of the camera view */
+            width: 50%; 
             height: auto;
-            display: block;
-        }
-        /* Color the light green target */
-        #alignment-target .icon-a {
-            fill: var(--target-color-light);
-        }
-        /* Color the dark green helper */
-        #alignment-helper .icon-a {
-            fill: var(--helper-color-dark);
+            transform: translate(-50%, -50%); /* Default centering */
         }
 
+        /* Specific style for the Target (light green, in the center) */
+        #target-svg {
+            fill: var(--target-color-light);
+        }
+
+        /* Specific style for the Helper (dark green, slightly offset for demo) */
+        #helper-svg {
+            fill: var(--helper-color-dark);
+            /* CHANGE: Intentionally offset to show both layers */
+            transform: translate(-45%, -55%); 
+        }
 
         /* --- Control Panel --- */
         .control-panel {
@@ -131,10 +130,7 @@
             box-shadow: 0 2px 0 0 #004a99;
         }
 
-        /* --- Spacer --- */
-        .spacer {
-            flex-grow: 1;
-        }
+        .spacer { flex-grow: 1; }
 
         /* --- Progress Display --- */
         .progress-display {
@@ -152,9 +148,7 @@
             border-radius: 4px;
             border: 1px solid #CCC;
         }
-        .progress-frame.captured {
-            background-color: var(--camera-bg);
-        }
+        .progress-frame.captured { background-color: var(--camera-bg); }
 
         /* --- Application Status --- */
         .app-status {
@@ -168,15 +162,6 @@
     </style>
 </head>
 <body>
-    
-    <!-- SVG definition for the 'A' icon, defined once for reuse -->
-    <svg width="0" height="0" style="position:absolute">
-      <defs>
-        <symbol id="svg-a" viewBox="0 0 100 100">
-            <path class="icon-a" d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
-        </symbol>
-      </defs>
-    </svg>
 
     <div class="app-container">
         
@@ -187,15 +172,15 @@
         <div class="main-content">
             <div class="camera-view-container">
                 <div class="camera-view">
-                    <!-- Target (T) - Light Green, underneath -->
-                    <div id="alignment-target" class="alignment-element">
-                        <svg class="alignment-svg"><use href="#svg-a"></use></svg>
-                    </div>
-                    <!-- Alignment Helper (AH) - Dark Green, on top -->
-                    <!-- In this static view, it perfectly covers the target -->
-                    <div id="alignment-helper" class="alignment-element">
-                        <svg class="alignment-svg"><use href="#svg-a"></use></svg>
-                    </div>
+                    <!-- REVISED AND SIMPLIFIED HTML STRUCTURE -->
+                    <!-- The Target 'A' (light green, stationary center) -->
+                    <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100">
+                        <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
+                    </svg>
+                    <!-- The Helper 'A' (dark green, moves with phone, offset for demo) -->
+                    <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100">
+                        <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
+                    </svg>
                 </div>
             </div>
 
@@ -224,8 +209,6 @@
 
     <script>
         // Phase 1 (Static UI) is complete.
-        // The HTML and CSS are now set up for Phase 2, where we will use JavaScript
-        // to move the '#alignment-helper' element based on device sensor data.
     </script>
 
 </body>
