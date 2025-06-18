@@ -71,6 +71,9 @@
             const ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
             const TARGET_PITCH = 80;
 
+            // THE FIX: Define a multiplier to amplify the vertical movement
+            const PITCH_SENSITIVITY_MULTIPLIER = 3.0;
+
             let smoothedRoll = 0;
             const SMOOTHING_FACTOR = 0.1;
 
@@ -98,36 +101,34 @@
 
             // --- Core Movement Logic ---
             function handleOrientation(event) {
-                let { beta, gamma } = event; // pitch, roll
+                let { beta, gamma } = event;
                 if (beta === null || gamma === null) return;
                 
-                // --- 1. Calculate Y-axis position using a simpler, direct mapping ---
+                // --- 1. Calculate Y-axis position ---
                 const PITCH_RANGE_MIN = 0;
                 const PITCH_RANGE_MAX = 180;
+                const TRAVEL_RANGE_PERCENT = 30; // Base travel is from -15% to +15%
                 
-                // The center of the Target (T) should travel between 35% and 65% of the view's height
-                // This makes its edges touch the view's top/bottom, as it is 70% high.
-                const TOP_BOUNDARY = 35; // Top position at beta=0
-                const BOTTOM_BOUNDARY = 65; // Top position at beta=180
-                const TRAVEL_RANGE = BOTTOM_BOUNDARY - TOP_BOUNDARY; // This is 30
-
                 const clampedBeta = Math.max(PITCH_RANGE_MIN, Math.min(PITCH_RANGE_MAX, beta));
                 const progress = (clampedBeta - PITCH_RANGE_MIN) / (PITCH_RANGE_MAX - PITCH_RANGE_MIN);
-
-                const newTop = TOP_BOUNDARY + (progress * TRAVEL_RANGE);
                 
-                // --- 2. Calculate dynamic rotation (unchanged) ---
+                // Map progress to the base travel range
+                let baseMovement = -TRAVEL_RANGE_PERCENT / 2 + (progress * TRAVEL_RANGE_PERCENT);
+                
+                // Apply the sensitivity multiplier
+                let yMovementPercent = baseMovement * PITCH_SENSITIVITY_MULTIPLIER;
+
+                // --- 2. Calculate dynamic rotation ---
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
                 const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
                 const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
                 const finalRotation = -smoothedRoll * rotationScale;
 
                 // --- 3. Apply styles ---
-                // THE FIX: Set the 'top' property directly, and use transform for centering/rotation
-                targetSVG.style.top = `${newTop}%`;
-                targetSVG.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg)`;
+                targetSVG.style.top = `50%`; // Keep it centered vertically by default
+                targetSVG.style.transform = `translate(-50%, ${yMovementPercent}%) rotate(${finalRotation}deg)`;
 
-                // --- 4. Update UI based on the GOAL (TARGET_PITCH) ---
+                // --- 4. Update UI based on GOAL ---
                 const pitchOffset = beta - TARGET_PITCH;
                 const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
