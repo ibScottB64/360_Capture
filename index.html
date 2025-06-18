@@ -61,7 +61,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Elements and Config (unchanged) ---
+            // --- Elements and Config ---
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
             const startBtn = document.getElementById('start-btn');
@@ -102,18 +102,18 @@
                 if (beta === null || gamma === null) return;
                 
                 // --- 1. Calculate Y-axis position using ABSOLUTE mapping ---
+                // THE FIX: Define the full 0 to 180-degree range.
                 const PITCH_RANGE_MIN = 0;
-                const PITCH_RANGE_MAX = 130;
-                const MAX_TRAVEL_PERCENT = 15; // Top/bottom boundary is 15% from center
+                const PITCH_RANGE_MAX = 180;
+                // The visible area for the target center is 30% of the view height (from -15% to +15%)
+                const VERTICAL_TRAVEL_RANGE = 30; 
 
-                // Clamp the current pitch to our defined range
                 const clampedBeta = Math.max(PITCH_RANGE_MIN, Math.min(PITCH_RANGE_MAX, beta));
-
-                // Calculate the progress (0.0 to 1.0) through the pitch range
                 const progress = (clampedBeta - PITCH_RANGE_MIN) / (PITCH_RANGE_MAX - PITCH_RANGE_MIN);
-
-                // Map the progress to the output position range [-15%, +15%]
-                const yMovementPercent = -MAX_TRAVEL_PERCENT + (progress * (MAX_TRAVEL_PERCENT * 2));
+                
+                // Map the progress (0.0 to 1.0) to the output position range.
+                // Start at -15% and add the progress through the travel range.
+                const yMovementPercent = -VERTICAL_TRAVEL_RANGE / 2 + (progress * VERTICAL_TRAVEL_RANGE);
                 
                 // --- 2. Calculate dynamic rotation (unchanged) ---
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
@@ -122,10 +122,10 @@
                 const finalRotation = -smoothedRoll * rotationScale;
 
                 // --- 3. Apply the transform ---
+                // The 'y' position is now a direct percentage, and we add the 'x' for centering.
                 targetSVG.style.transform = `translate(-50%, ${yMovementPercent}%) rotate(${finalRotation}deg)`;
 
                 // --- 4. Update UI based on the GOAL (TARGET_PITCH) ---
-                // The misalignment check is still relative to our 80-degree target
                 const pitchOffset = beta - TARGET_PITCH;
                 const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
@@ -143,8 +143,8 @@
             }
 
             function getAlignmentColor(misalignment) {
-                if (misalignment < ALIGN_TOLERANCE) return 'var(--aligned-color)';
-                else if (misalignment < ALIGN_TOLERANCE * 5) return 'var(--warn-color)';
+                if (misalignment < ALIGNMENT_TOLERANCE) return 'var(--aligned-color)';
+                else if (misalignment < ALIGNMENT_TOLERANCE * 5) return 'var(--warn-color)';
                 else return 'var(--error-color)';
             }
 
