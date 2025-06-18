@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>360 Room Scan</title>
     <style>
         /* --- Basic Setup & Theming --- */
@@ -12,8 +12,7 @@
             --camera-bg: #C5C6E0;
             --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
-            --success-color: #28A745; /* Green for helper */
-            --target-color: rgba(51, 51, 51, 0.35); /* Semi-transparent gray for target */
+            --success-color: #28A745;
             --text-color: #333333;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
@@ -23,18 +22,9 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            overflow: hidden; /* Critical: Prevents scrolling */
             font-family: var(--font-family);
             background-color: var(--secondary-bg);
-            color: var(--text-color);
-        }
-        
-        /* --- Page Title (outside the app) --- */
-        .page-title {
-            text-align: center;
-            font-size: 2rem;
-            font-weight: bold;
-            padding: 15px 10px 5px 10px;
         }
 
         /* --- Main App Container --- */
@@ -42,163 +32,146 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-width: 450px;
-            height: calc(100dvh - 65px); /* Adjust height to account for title */
+            max-width: 480px;
+            height: 100dvh; /* Use dynamic viewport height */
             margin: 0 auto;
             background-color: var(--primary-bg);
-            box-shadow: 0 0 20px rgba(0,0,0,0.15);
-            border: 1px solid #DDD;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
 
         /* --- Header --- */
         .app-header {
-            padding: 12px;
+            flex-shrink: 0; /* Prevent header from shrinking */
+            padding: 14px;
             text-align: center;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 600;
+            color: var(--text-color);
             border-bottom: 1px solid var(--secondary-bg);
         }
 
-        /* --- Main Content Layout --- */
+        /* --- Main Content --- */
         .main-content {
-            flex-grow: 1;
+            flex-grow: 1; /* Takes up all available vertical space */
             display: flex;
-            padding: 10px;
-            gap: 10px;
-            min-height: 0;
+            padding: 12px;
+            gap: 12px;
+            min-height: 0; /* Prevents flex children from overflowing */
         }
 
-        /* --- Camera View --- */
+        /* --- Camera View (REVISED with Aspect Ratio Hack) --- */
+        .camera-view-container {
+            flex-grow: 1; /* Allow container to grow */
+            position: relative; /* For the hack */
+            min-width: 0; /* Prevent flexbox from expanding it indefinitely */
+        }
+        
         .camera-view {
-            flex-grow: 1;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--camera-bg);
-            border-radius: 8px;
-            overflow: hidden;
-            /* CHANGE: Enforce a 4:3 aspect ratio (portrait) */
-            aspect-ratio: 3 / 4;
-        }
-        
-        .alignment-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 100px; /* Controls the overall size of the target/helper */
-            height: 100px;
-        }
-        
-        /* The SVG 'A' used for both target and helper */
-        .alignment-svg {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            background-color: var(--camera-bg);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-
-        /* NEW: The stationary target outline */
-        #alignment-target .icon-a {
-            fill: transparent;
-            stroke: var(--target-color);
-            stroke-width: 14; /* Creates a thick, bold outline */
-            stroke-linejoin: round;
+        
+        /* The robust padding-bottom hack for 4:3 aspect ratio */
+        .camera-view-container::before {
+            content: '';
+            display: block;
+            padding-bottom: 133.33%; /* 4/3 Aspect Ratio */
         }
-
-        /* NEW: The solid helper that moves with the phone */
-        #alignment-helper .icon-a {
+        
+        /* --- Target 'A' --- */
+        .target-container {
+            width: 25%; /* Size relative to camera view width */
+            max-width: 100px; /* But not too big */
+        }
+        
+        .target-svg {
+            width: 100%;
+            height: auto;
             fill: var(--success-color);
-            stroke: none;
         }
 
-        /* --- Control Panel (Side buttons) --- */
+        /* --- Control Panel (REVISED Button Styling) --- */
         .control-panel {
+            flex-shrink: 0;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
+            width: 100px;
         }
 
         .control-button {
-            width: 100px;
-            padding: 15px 10px;
+            width: 100%;
+            padding: 16px 10px;
             font-size: 1.1rem;
             font-weight: bold;
-            border: 1px solid #B0B0B0;
             border-radius: 8px;
             cursor: pointer;
-            background-color: var(--secondary-bg);
-            color: var(--text-color);
             transition: all 0.1s ease-out;
-            /* CHANGE: Add shadow for "push button" effect */
-            box-shadow: 0 4px 0 #B0B0B0;
+            border-width: 1px;
+            border-style: solid;
+            /* REVISED: Bolder shadow for push-button effect */
+            box-shadow: 0 5px 0 0 rgba(0, 0, 0, 0.25);
         }
-
         .control-button:active {
-            /* CHANGE: Makes the button look like it's being pressed */
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #B0B0B0;
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 0 rgba(0, 0, 0, 0.3);
         }
         
+        #rescan-btn {
+            background-color: #F0F0F0;
+            color: var(--text-color);
+            border-color: #B0B0B0;
+        }
         #submit-btn {
             background-color: var(--accent-color);
             color: var(--accent-text-color);
             border-color: #0056b3;
-            box-shadow: 0 4px 0 #0056b3;
-        }
-        #submit-btn:active {
-            box-shadow: 0 2px 0 #0056b3;
         }
 
-
-        /* --- Progress Display --- */
+        /* --- Progress Display (REVISED) --- */
         .progress-display {
+            flex-shrink: 0;
             display: flex;
-            flex-wrap: wrap; /* Allows thumbnails to wrap if needed on small screens */
-            gap: 6px;
-            padding: 10px;
-            margin: 0 10px;
+            gap: 8px;
+            padding: 0 12px 12px 12px;
+            overflow-x: auto; /* Allows horizontal scrolling if needed, but shouldn't be */
         }
 
         .progress-frame {
-            flex-basis: calc(16.666% - 5px); /* Aim for 6 per row */
-            flex-grow: 1;
+            flex-shrink: 0; /* Prevent thumbnails from squishing */
+            height: 50px; /* Set a fixed height */
+            /* REVISED: Use aspect ratio to determine width */
+            width: 37.5px; /* (50px * 3/4) */
             background-color: var(--secondary-bg);
             border-radius: 4px;
             border: 1px solid #CCC;
-            /* CHANGE: Match the camera's aspect ratio */
-            aspect-ratio: 3 / 4; 
         }
-
         .progress-frame.captured {
-            /* For this static view, we'll just color them in. Later they'll have image backgrounds. */
-            background-color: #A0A0C0;
+            background-color: var(--camera-bg);
         }
 
         /* --- Application Status --- */
         .app-status {
-            padding: 15px;
+            flex-shrink: 0;
+            padding: 16px;
             text-align: center;
             font-size: 1.3rem;
             font-weight: 500;
+            color: var(--text-color);
+            border-top: 1px solid var(--secondary-bg);
         }
     </style>
 </head>
 <body>
 
-    <!-- SVG definition for the 'A' icon. Placed here to be reusable. -->
-    <svg width="0" height="0" style="position:absolute">
-      <defs>
-        <symbol id="svg-a" viewBox="0 0 100 100">
-            <path class="icon-a" d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
-        </symbol>
-      </defs>
-    </svg>
-
-    <h1 class="page-title">360 ROOM<br>SCAN INSTRUCTIONS</h1>
-    
     <div class="app-container">
         
         <header class="app-header">
@@ -206,19 +179,13 @@
         </header>
 
         <div class="main-content">
-            <div class="camera-view">
-                <!-- In a live app, a <video> element would be the first child here -->
-                
-                <div class="alignment-container">
-                    <!-- The stationary target 'A' outline -->
-                    <svg id="alignment-target" class="alignment-svg">
-                        <use xlink:href="#svg-a"></use>
-                    </svg>
-
-                    <!-- The movable 'A' that aligns with the target. JS will move this. -->
-                    <svg id="alignment-helper" class="alignment-svg">
-                        <use xlink:href="#svg-a"></use>
-                    </svg>
+            <div class="camera-view-container">
+                <div class="camera-view">
+                    <div class="target-container">
+                        <svg class="target-svg" viewBox="0 0 100 100">
+                            <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
+                        </svg>
+                    </div>
                 </div>
             </div>
 
@@ -230,18 +197,12 @@
 
         <div class="progress-display">
             <!-- 12 frames, simulating a full 360-degree scan (30 degrees per shot) -->
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
-            <div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
+            <div class="progress-frame captured"></div><div class="progress-frame captured"></div>
         </div>
 
         <footer class="app-status">
@@ -252,7 +213,6 @@
 
     <script>
         // No changes to JavaScript yet. All updates are in HTML and CSS.
-        // The placeholder comments for future phases are still valid.
     </script>
 
 </body>
