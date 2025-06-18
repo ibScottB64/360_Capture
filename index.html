@@ -55,10 +55,8 @@
         <footer class="app-status" id="app-status">Align to Start</footer>
     </div>
     <div id="permission-overlay">
-        <h2>Sensor Access Required</h2>
-        <p>This app needs access to your phone's motion sensors to help you align the camera.</p>
-        <button id="permission-button">Allow Access</button>
-        <p id="permission-error"></p>
+        <h2>Sensor Access Required</h2><p>This app needs access to your phone's motion sensors to help you align the camera.</p>
+        <button id="permission-button">Allow Access</button><p id="permission-error"></p>
     </div>
 
     <script>
@@ -76,48 +74,28 @@
             let isAligned = false, alignmentTimer = null;
             const ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
             const TARGET_PITCH = 80;
-
-            // FIX 2: Sensitivity constants for both axes
             const PITCH_SENSITIVITY = 3.5; 
-            const ROLL_SENSITIVITY = 3.5;
 
-            // --- Permission Handling ---
-            function startListening() {
-                window.addEventListener('deviceorientation', handleOrientation);
-                permissionOverlay.classList.add('hidden');
-            }
+            let smoothedRoll = 0;
+            const SMOOTHING_FACTOR = 0.1;
 
+            // --- Permission Handling (unchanged) ---
+            function startListening() { window.addEventListener('deviceorientation', handleOrientation); permissionOverlay.classList.add('hidden'); }
             function handlePermission() {
-                // Check if the modern Permissions API is available
                 if (navigator.permissions && typeof navigator.permissions.query === 'function') {
-                    // 'gyroscope' or 'accelerometer' are good proxies for deviceorientation
                     navigator.permissions.query({ name: 'accelerometer' }).then(result => {
-                        if (result.state === 'granted') {
-                            startListening(); // Permission already granted
-                        } else if (result.state === 'prompt') {
-                            // Show the button to ask for permission
-                            permissionBtn.onclick = requestSensorAccess;
-                        } else if (result.state === 'denied') {
-                            permissionError.textContent = "Sensor access denied. Please enable in your browser settings.";
-                            permissionBtn.disabled = true;
-                        }
+                        if (result.state === 'granted') startListening();
+                        else if (result.state === 'prompt') permissionBtn.onclick = requestSensorAccess;
+                        else if (result.state === 'denied') { permissionError.textContent = "Sensor access denied."; permissionBtn.disabled = true; }
                     });
-                } else {
-                    // Fallback for older browsers: just show the button
-                    permissionBtn.onclick = requestSensorAccess;
-                }
+                } else { permissionBtn.onclick = requestSensorAccess; }
             }
-            
             function requestSensorAccess() {
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission().then(state => {
-                        if (state === 'granted') startListening();
-                        else permissionError.textContent = "Permission denied.";
+                        if (state === 'granted') startListening(); else permissionError.textContent = "Permission denied.";
                     }).catch(console.error);
-                } else {
-                    // For browsers that don't require an explicit request
-                    startListening();
-                }
+                } else { startListening(); }
             }
 
             // --- Core Movement Logic ---
@@ -127,27 +105,29 @@
                 
                 const pitchOffset = beta - TARGET_PITCH;
                 const rollOffset = gamma;
-
-                // FIX 2: Calculate both X and Y movement
+                
+                // --- 1. Calculate Y-axis movement (unchanged) ---
+                const max_y_percent = 15;
                 let yMovement = pitchOffset * PITCH_SENSITIVITY;
-                let xMovement = rollOffset * ROLL_SENSITIVITY;
-
-                // Clamp movement to keep the Target inside the view
-                // Limit is 15% travel distance from center (since element is 70% wide/high)
-                const max_travel_percent = 15; 
                 const cameraHeight = cameraView.offsetHeight;
-                const cameraWidth = cameraView.offsetWidth;
-
                 let yMovementPercent = cameraHeight > 0 ? (yMovement / cameraHeight) * 100 : 0;
-                let xMovementPercent = cameraWidth > 0 ? (xMovement / cameraWidth) * 100 : 0;
+                yMovementPercent = Math.max(-max_y_percent, Math.min(max_y_percent, yMovementPercent));
                 
-                yMovementPercent = Math.max(-max_travel_percent, Math.min(max_travel_percent, yMovementPercent));
-                xMovementPercent = Math.max(-max_travel_percent, Math.min(max_travel_percent, xMovementPercent));
+                // --- 2. Calculate dynamic rotation ---
+                smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (rollOffset * SMOOTHING_FACTOR);
                 
-                // Apply the transform WITHOUT rotation
-                targetSVG.style.transform = `translate(calc(-50% + ${xMovementPercent}%), calc(-50% + ${yMovementPercent}%))`;
+                // THE FIX: Calculate a scaling factor for rotation based on pitch.
+                // Clamp pitch for this calculation to the 0-80 range.
+                const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
+                // Linear interpolation: scale = 1.0 at pitch 0, and 0.2 at pitch 80.
+                const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
+                
+                const finalRotation = -smoothedRoll * rotationScale;
 
-                // Update colors and UI state based on total misalignment
+                // --- 3. Apply the transform with both position and rotation ---
+                targetSVG.style.transform = `translate(-50%, calc(-50% + ${yMovementPercent}%)) rotate(${finalRotation}deg)`;
+
+                // --- 4. Update UI (unchanged) ---
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
                 helperSVGPath.style.fill = getAlignmentColor(misalignment);
                 
@@ -180,7 +160,7 @@
                 permissionOverlay.style.display = 'flex';
                 permissionBtn.disabled = true;
             } else {
-                handlePermission(); // FIX 1: Start the new permission flow
+                handlePermission();
             }
         });
     </script>
