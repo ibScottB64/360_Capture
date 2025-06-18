@@ -8,8 +8,8 @@
         /* CSS is unchanged */
         :root {
             --primary-bg: #FFFFFF; --secondary-bg: #EAEAF0; --camera-bg: #C5C6E0; --accent-color: #007BFF;
-            --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0; --aligned-color: #28a745;
-            --warn-color: #ffc107; --error-color: #dc3545; --target-color-light: #A3E635;
+            --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0;
+            --target-color-light: #A3E635;
             --text-color: #333333; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: var(--font-family); background-color: var(--secondary-bg); }
@@ -23,7 +23,7 @@
         #target-svg { transform: translate(-50%, -50%); }
         #helper-svg { transform: translate(-50%, -50%) scale(0.8); }
         #target-svg path { fill: var(--target-color-light); }
-        #helper-svg path { fill: var(--error-color); transition: fill 0.2s ease-in-out; }
+        #helper-svg path { transition: fill 0.1s linear; }
         .control-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px; }
         .control-button { width: 100%; padding: 16px 10px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.1s ease-out; border-style: solid; border-width: 1px; }
         .control-button:disabled { background-color: var(--disabled-color); color: #FFF; border-color: #999; box-shadow: none; cursor: not-allowed; }
@@ -68,8 +68,8 @@
             
             let isAligned = false, alignmentTimer = null;
 
-            // THE FIX: Doubled the tolerance to make alignment easier.
-            const ALIGNMENT_TOLERANCE = 16; 
+            // FIX 1: Doubled the tolerance again for easier alignment.
+            const ALIGNMENT_TOLERANCE = 16;
             
             const ALIGNMENT_HOLD_TIME = 1000;
             const TARGET_PITCH = 80;
@@ -77,6 +77,7 @@
             let smoothedRoll = 0;
             const SMOOTHING_FACTOR = 0.1;
 
+            // --- Permission Handling (unchanged) ---
             const permissionOverlay = document.getElementById('permission-overlay');
             const permissionBtn = document.getElementById('permission-button');
             const permissionError = document.getElementById('permission-error');
@@ -98,18 +99,13 @@
                 } else { startListening(); }
             }
 
+            // --- Core Logic ---
             function handleOrientation(event) {
                 let { beta, gamma } = event;
                 if (beta === null || gamma === null) return;
-
                 let yTranslatePercent = 0;
-                if (beta <= TARGET_PITCH) {
-                    const progress = beta / TARGET_PITCH;
-                    yTranslatePercent = -50 + (progress * 50);
-                } else {
-                    const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH);
-                    yTranslatePercent = progress * 50;
-                }
+                if (beta <= TARGET_PITCH) { const progress = beta / TARGET_PITCH; yTranslatePercent = -50 + (progress * 50); } 
+                else { const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH); yTranslatePercent = progress * 50; }
                 yTranslatePercent = Math.max(-50, Math.min(50, yTranslatePercent));
                 
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
@@ -123,7 +119,8 @@
                 const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
                 
-                helperSVGPath.style.fill = getAlignmentColor(misalignment);
+                // FIX 2: Set helper color using the new gradient function.
+                helperSVGPath.style.fill = getGradientColor(misalignment);
                 
                 if (misalignment < ALIGNMENT_TOLERANCE) {
                     if (!isAligned && alignmentTimer === null) {
@@ -135,10 +132,48 @@
                 }
             }
 
-            function getAlignmentColor(misalignment) {
-                if (misalignment < ALIGNMENT_TOLERANCE) return 'var(--aligned-color)';
-                else if (misalignment < ALIGNMENT_TOLERANCE * 5) return 'var(--warn-color)';
-                else return 'var(--error-color)';
+            // --- NEW: Color Gradient Logic ---
+            const RGB_COLORS = {
+                green: [40, 167, 69],   // #28a745
+                yellow: [255, 193, 7],  // #ffc107
+                red: [220, 53, 69]      // #dc3545
+            };
+
+            function interpolate(start, end, progress) {
+                return Math.round(start + progress * (end - start));
+            }
+
+            function getGradientColor(misalignment) {
+                const greenPoint = ALIGNMENT_TOLERANCE;
+                const redPoint = ALIGNMENT_TOLERANCE * 5;
+                const yellowPoint = (greenPoint + redPoint) / 2;
+
+                let startColor, endColor, progress;
+
+                if (misalignment <= greenPoint) {
+                    return `rgb(${RGB_COLORS.green.join(',')})`;
+                }
+                if (misalignment >= redPoint) {
+                    return `rgb(${RGB_COLORS.red.join(',')})`;
+                }
+
+                if (misalignment < yellowPoint) {
+                    // Green to Yellow
+                    startColor = RGB_COLORS.green;
+                    endColor = RGB_COLORS.yellow;
+                    progress = (misalignment - greenPoint) / (yellowPoint - greenPoint);
+                } else {
+                    // Yellow to Red
+                    startColor = RGB_COLORS.yellow;
+                    endColor = RGB_COLORS.red;
+                    progress = (misalignment - yellowPoint) / (redPoint - yellowPoint);
+                }
+
+                const r = interpolate(startColor[0], endColor[0], progress);
+                const g = interpolate(startColor[1], endColor[1], progress);
+                const b = interpolate(startColor[2], endColor[2], progress);
+
+                return `rgb(${r},${g},${b})`;
             }
 
             function setAlignedState(isNowAligned) {
