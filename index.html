@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>360 Room Scan</title>
     <style>
+        /* CSS is unchanged */
         :root {
             --primary-bg: #FFFFFF; --secondary-bg: #EAEAF0; --camera-bg: #C5C6E0; --accent-color: #007BFF;
             --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0; --aligned-color: #28a745;
@@ -12,18 +13,9 @@
             --text-color: #333333; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: var(--font-family); background-color: var(--secondary-bg); }
-
-        /* FIX 2: Replaced Flexbox column with a robust CSS Grid layout */
-        .app-container {
-            display: grid;
-            /* Header, Main Content(stretches), Progress Bar, Footer */
-            grid-template-rows: auto 1fr auto auto;
-            width: 100%; max-width: 480px; height: 100dvh;
-            margin: 0 auto; background-color: var(--primary-bg);
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
+        .app-container { display: grid; grid-template-rows: auto 1fr auto auto; width: 100%; max-width: 480px; height: 100dvh; margin: 0 auto; background-color: var(--primary-bg); box-shadow: 0 0 20px rgba(0,0,0,0.1); }
         .app-header { padding: 14px; text-align: center; font-size: 1.3rem; font-weight: 600; border-bottom: 1px solid var(--secondary-bg); }
-        .main-content { display: flex; padding: 12px; gap: 12px; min-height: 0; /* Prevents overflow within grid area */ }
+        .main-content { display: flex; padding: 12px; gap: 12px; min-height: 0; }
         .camera-view-container { flex-grow: 1; position: relative; min-width: 0; }
         .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
         .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
@@ -41,7 +33,6 @@
         .progress-display { display: flex; align-items: center; gap: 8px; padding: 12px; overflow-x: auto; }
         .progress-frame { flex-shrink: 0; height: 50px; width: 37.5px; background-color: var(--secondary-bg); border-radius: 4px; border: 1px solid #CCC; }
         .app-status { padding: 16px; text-align: center; font-size: 1.3rem; font-weight: 500; border-top: 1px solid var(--secondary-bg); }
-        
         #permission-overlay { position: fixed; top: 0; left: 0; z-index: 100; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.75); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; box-sizing: border-box; }
         #permission-overlay.hidden { display: none; }
     </style>
@@ -49,8 +40,8 @@
 <body>
 
     <div class="app-container">
+        <!-- HTML is unchanged -->
         <header class="app-header">360 Room Scan</header>
-        
         <div class="main-content">
             <div class="camera-view-container">
                 <div class="camera-view" id="camera-view">
@@ -63,13 +54,9 @@
                 <div id="scan-complete-controls" class="hidden"><button class="control-button enabled" id="rescan-btn">Rescan</button><button class="control-button enabled" id="submit-btn">Submit</button></div>
             </div>
         </div>
-        
-        <!-- The spacer is no longer needed with CSS Grid -->
-        
         <div class="progress-display" id="progress-display"></div>
         <footer class="app-status" id="app-status">Align to Start</footer>
     </div>
-
     <div id="permission-overlay">
         <h2>Sensor Access Required</h2>
         <p>This app needs access to your phone's motion sensors to help you align the camera.</p>
@@ -90,10 +77,8 @@
             
             let isAligned = false, alignmentTimer = null;
             const PITCH_SENSITIVITY = 3.5, ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
-            
-            // FIX 1: Add variables for smoothing the roll input
             let smoothedRoll = 0;
-            const SMOOTHING_FACTOR = 0.1; // 10% of new value, 90% of old. Lower is smoother.
+            const SMOOTHING_FACTOR = 0.1;
 
             permissionBtn.addEventListener('click', () => {
                 const startListening = () => {
@@ -112,15 +97,14 @@
                 let { beta, gamma } = event;
                 if (beta === null || gamma === null) return;
                 
-                const pitchOffset = beta - 90;
-                const rollOffset = gamma;
+                // THE FIX: Target pitch is 80 degrees to avoid Gimbal Lock instability at 90.
+                const TARGET_PITCH = 80;
+                const pitchOffset = beta - TARGET_PITCH;
                 
-                // --- Apply smoothing to the roll ---
+                const rollOffset = gamma;
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (rollOffset * SMOOTHING_FACTOR);
+                const rotation = -smoothedRoll;
 
-                const rotation = -smoothedRoll; // Use the smoothed value for rotation
-
-                // --- Calculate position ---
                 const max_y_percent = 15;
                 let yMovement = pitchOffset * PITCH_SENSITIVITY;
                 const cameraHeight = cameraView.offsetHeight;
@@ -129,7 +113,6 @@
                 
                 targetSVG.style.transform = `translate(-50%, calc(-50% + ${yMovementPercent}%)) rotate(${rotation}deg)`;
 
-                // --- Update colors and UI state ---
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
                 helperSVGPath.style.fill = getAlignmentColor(misalignment);
                 
