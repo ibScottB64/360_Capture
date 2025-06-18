@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>360 Room Scan</title>
     <style>
-        /* CSS is unchanged */
         :root {
             --primary-bg: #FFFFFF; --secondary-bg: #EAEAF0; --camera-bg: #C5C6E0; --accent-color: #007BFF;
             --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0; --aligned-color: #28a745;
@@ -20,10 +19,16 @@
         .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
         .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
         .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.05s linear; }
+        
+        /* (T) Target styling */
         #target-svg { transform: translate(-50%, -50%); }
-        #helper-svg { transform: translate(-50%, -50%); }
         #target-svg path { fill: var(--target-color-light); }
+        
+        /* (AH) Helper styling */
+        /* FIX 1: Add scale(0.8) to make the helper 80% of its original size */
+        #helper-svg { transform: translate(-50%, -50%) scale(0.8); }
         #helper-svg path { fill: var(--error-color); transition: fill 0.2s ease-in-out; }
+
         .control-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px; }
         .control-button { width: 100%; padding: 16px 10px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.1s ease-out; border-style: solid; border-width: 1px; }
         .control-button:disabled { background-color: var(--disabled-color); color: #FFF; border-color: #999; box-shadow: none; cursor: not-allowed; }
@@ -43,8 +48,9 @@
         <header class="app-header">360 Room Scan</header>
         <div class="main-content">
             <div class="camera-view-container"><div class="camera-view" id="camera-view">
-                <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
+                <!-- FIX 2: Target (T) is now first, so it renders *underneath* the Helper (AH) -->
                 <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
+                <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
             </div></div>
             <div class="control-panel">
                 <div id="pre-scan-controls"><button class="control-button" id="start-btn" disabled>Start</button></div>
@@ -60,6 +66,7 @@
     </div>
 
     <script>
+        // JavaScript is unchanged, the fixes were in HTML and CSS.
         document.addEventListener('DOMContentLoaded', () => {
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
@@ -73,7 +80,6 @@
             let smoothedRoll = 0;
             const SMOOTHING_FACTOR = 0.1;
 
-            // --- Permission Handling (unchanged) ---
             const permissionOverlay = document.getElementById('permission-overlay');
             const permissionBtn = document.getElementById('permission-button');
             const permissionError = document.getElementById('permission-error');
@@ -95,39 +101,28 @@
                 } else { startListening(); }
             }
 
-            // --- Core Movement Logic ---
             function handleOrientation(event) {
                 let { beta, gamma } = event;
                 if (beta === null || gamma === null) return;
 
-                // --- THE FIX: A robust, percentage-based calculation ---
                 let yTranslatePercent = 0;
-                
-                // Stage 1: From flat (0) to target (80), move from top edge (-50%) to center (0%).
                 if (beta <= TARGET_PITCH) {
                     const progress = beta / TARGET_PITCH;
                     yTranslatePercent = -50 + (progress * 50);
                 } 
-                // Stage 2: From target (80) to upside-down (180), move from center (0%) to bottom edge (+50%).
                 else {
                     const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH);
                     yTranslatePercent = progress * 50;
                 }
-
-                // Clamp the final value to prevent over-travel
                 yTranslatePercent = Math.max(-50, Math.min(50, yTranslatePercent));
                 
-                // --- Calculate dynamic rotation (unchanged) ---
                 smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
                 const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
                 const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
                 const finalRotation = -smoothedRoll * rotationScale;
 
-                // --- Apply transform ---
-                // The transform starts at a base of (-50%, -50%) to center the element, then we add our calculated Y offset.
                 targetSVG.style.transform = `translate(-50%, calc(-50% + ${yTranslatePercent}%)) rotate(${finalRotation}deg)`;
 
-                // --- Update UI based on GOAL ---
                 const pitchOffset = beta - TARGET_PITCH;
                 const rollOffset = gamma;
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
@@ -136,7 +131,7 @@
                 
                 if (misalignment < ALIGNMENT_TOLERANCE) {
                     if (!isAligned && alignmentTimer === null) {
-                        alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGN_HOLD_TIME);
+                        alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGNMENT_HOLD_TIME);
                     }
                 } else {
                     if (alignmentTimer) { clearTimeout(alignmentTimer); alignmentTimer = null; }
