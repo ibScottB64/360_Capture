@@ -106,12 +106,43 @@
       const TARGET_PITCH = 80;
       const SMOOTHING_FACTOR = 0.1;
 
-      // --- PERMISSION HANDLING (Unchanged) ---
+      // --- PERMISSION HANDLING (FIXED: Restored full function bodies) ---
       function startListening() { window.addEventListener('deviceorientation', handleOrientation); permissionOverlay.classList.add('hidden'); }
-      function handlePermission() { /* ... */ }
-      function requestSensorAccess() { /* ... */ }
+      
+      function handlePermission() {
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+          navigator.permissions.query({ name: 'accelerometer' }).then(result => {
+            if (result.state === 'granted') {
+              startListening();
+            } else if (result.state === 'prompt') {
+              permissionBtn.onclick = requestSensorAccess;
+            } else if (result.state === 'denied') {
+              permissionError.textContent = "Sensor access denied.";
+              permissionBtn.disabled = true;
+            }
+          });
+        } else {
+          // Fallback for older browsers
+          permissionBtn.onclick = requestSensorAccess;
+        }
+      }
+      
+      function requestSensorAccess() {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission().then(state => {
+            if (state === 'granted') {
+              startListening();
+            } else {
+              permissionError.textContent = "Permission denied.";
+            }
+          }).catch(console.error);
+        } else {
+          // This path is taken on Android and other non-iOS 13+ browsers
+          startListening();
+        }
+      }
 
-      // --- CORE LOGIC (Modified) ---
+      // --- CORE LOGIC (Unchanged from previous version) ---
       function handleOrientation(event) {
         orientationData = { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
         if (isPaused || event.beta === null) return;
@@ -140,9 +171,6 @@
             const yawDiff = getShortestAngleDiff(event.alpha, targetAlpha);
             const yawOffset = Math.abs(yawDiff);
             const totalMisalignment = Math.sqrt(Math.pow(pitchRollMisalignment, 2) + Math.pow(yawOffset, 2));
-            
-            // FIX 1: Corrected guidance direction. A positive yawDiff (target is to the right) should move the
-            // target indicator to the right on screen, guiding the user to pan right.
             const xTranslatePercent = Math.max(-50, Math.min(50, yawDiff));
             targetSVG.style.transform = `translate(calc(-50% + ${xTranslatePercent}%), -50%)`;
             helperSVGPath.style.fill = getGradientColor(totalMisalignment, PITCH_ROLL_TOLERANCE + YAW_TOLERANCE);
@@ -167,7 +195,7 @@
         }
       }
       
-      // --- The rest of the JavaScript is mostly unchanged, except completeScan() ---
+      // --- The rest of the JavaScript is unchanged ---
       function getGradientColor(misalignment, greenThreshold) {
         const redPoint = greenThreshold * 5;
         const yellowPoint = (greenThreshold + redPoint) / 2;
@@ -223,7 +251,6 @@
           }, 'image/jpeg', 0.9);
       }
       function completeScan() {
-        // FIX 2: Set isScanning to false to stop the orientation handler from taking more photos.
         isScanning = false;
         appStatus.textContent = 'Scan Complete!';
         stopCamera();
@@ -261,11 +288,15 @@
           });
           progressDisplay.scrollLeft = progressDisplay.scrollWidth;
       }
-      // Re-added the unchanged permission functions for completeness, which were omitted in my previous response for brevity.
+      
+      // Initialization logic (unchanged but now calls the restored permission functions)
       if (!window.DeviceOrientationEvent) {
           permissionError.textContent = "Device orientation not supported.";
           permissionOverlay.style.display = 'flex'; permissionBtn.disabled = true;
-      } else { handlePermission(); }
+      } else {
+          handlePermission(); 
+      }
+      
       startBtn.addEventListener('click', () => { if (isAligned && !isScanning) startScan(); });
       cancelBtn.addEventListener('click', () => cancelScan());
       pauseBtn.addEventListener('click', () => {
