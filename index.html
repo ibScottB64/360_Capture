@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
   <title>360 Room Scan</title>
   <style>
-    /* CSS is unchanged from the previous version */
+    /* CSS is unchanged */
     :root {
       --primary-bg: #FFFFFF; --secondary-bg: #EAEAF0; --camera-bg: #000000; --accent-color: #007BFF;
       --accent-text-color: #FFFFFF; --disabled-color: #B0B0B0;
@@ -22,7 +22,6 @@
     .camera-view video { width: 100%; height: 100%; object-fit: contain; }
     .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.05s linear; }
     #target-svg { transform: translate(-50%, -50%); }
-    /* This CSS rule is now correctly respected by the JS */
     #helper-svg { transform: translate(-50%, -50%) scale(0.8); }
     #target-svg path { fill: var(--target-color-light); }
     #helper-svg path { transition: fill 0.1s linear; }
@@ -42,7 +41,7 @@
   </style>
 </head>
 <body>
-  <!-- HTML is unchanged from the previous version -->
+  <!-- HTML is unchanged -->
   <div class="app-container">
     <header class="app-header">360 Room Scan</header>
     <div class="main-content">
@@ -73,7 +72,7 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // --- DOM ELEMENT REFERENCES ---
+      // --- DOM ELEMENT REFERENCES (Unchanged) ---
       const startBtn = document.getElementById('start-btn');
       const pauseBtn = document.getElementById('pause-btn');
       const cancelBtn = document.getElementById('cancel-btn'); 
@@ -91,19 +90,20 @@
       const helperSVG = document.getElementById('helper-svg');
       const helperSVGPath = document.querySelector('#helper-svg path');
 
-      // --- STATE & SENSOR DATA ---
+      // --- STATE & SENSOR DATA (Unchanged) ---
       let isScanning = false, isPaused = false, isAligned = false, isAwaitingMove = false;
       let alignmentTimer = null, stream = null;
       let capturedImages = [];
       let orientationData = { alpha: null, beta: null, gamma: null };
       let initialAlpha = null, targetAlpha = null;
 
-      // --- CONSTANTS ---
+      // --- CONSTANTS (Modified) ---
       const TOTAL_SNAPSHOTS = 12;
       const DEGREES_PER_SNAPSHOT = 360 / TOTAL_SNAPSHOTS;
       const PITCH_ROLL_TOLERANCE = 8;
       const YAW_TOLERANCE = 10;
-      const ALIGNMENT_HOLD_TIME = 750;
+      // FIX 2: Decreased hold time for faster snapshots.
+      const ALIGNMENT_HOLD_TIME = 500;
       const TARGET_PITCH = 80;
       const SMOOTHING_FACTOR = 0.1;
 
@@ -126,17 +126,14 @@
         } else { startListening(); }
       }
 
-      // --- CORE LOGIC ---
+      // --- CORE LOGIC (Modified) ---
       function handleOrientation(event) {
         orientationData = { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
         if (isPaused || event.beta === null) return;
 
-        // --- Visual guide for phone's current orientation (Helper SVG) ---
         let yTranslatePercent = 0;
         if (event.beta <= TARGET_PITCH) { yTranslatePercent = -50 + ((event.beta / TARGET_PITCH) * 50); }
         else { yTranslatePercent = ((event.beta - TARGET_PITCH) / (180 - TARGET_PITCH)) * 50; }
-        
-        // --- FIX IS HERE: Added scale(0.8) back into the dynamic transform ---
         helperSVG.style.transform = `translate(-50%, calc(-50% + ${yTranslatePercent}%)) rotate(${-event.gamma}deg) scale(0.8)`;
         
         const pitchOffset = event.beta - TARGET_PITCH;
@@ -158,13 +155,14 @@
             const yawDiff = getShortestAngleDiff(event.alpha, targetAlpha);
             const yawOffset = Math.abs(yawDiff);
             const totalMisalignment = Math.sqrt(Math.pow(pitchRollMisalignment, 2) + Math.pow(yawOffset, 2));
-            const xTranslatePercent = Math.max(-50, Math.min(50, yawDiff));
+            
+            // FIX 1: Inverted yawDiff to reverse the guidance direction.
+            const xTranslatePercent = Math.max(-50, Math.min(50, -yawDiff));
             targetSVG.style.transform = `translate(calc(-50% + ${xTranslatePercent}%), -50%)`;
             helperSVGPath.style.fill = getGradientColor(totalMisalignment, PITCH_ROLL_TOLERANCE + YAW_TOLERANCE);
 
-            if (isAwaitingMove && yawOffset > YAW_TOLERANCE * 1.5) {
-                isAwaitingMove = false;
-            }
+            if (isAwaitingMove && yawOffset > YAW_TOLERANCE * 1.5) { isAwaitingMove = false; }
+
             if (!isAwaitingMove && pitchRollMisalignment < PITCH_ROLL_TOLERANCE && yawOffset < YAW_TOLERANCE) {
                 if (alignmentTimer === null) {
                     appStatus.textContent = 'Hold steady...';
@@ -182,7 +180,7 @@
             }
         }
       }
-
+      
       // --- The rest of the JavaScript is unchanged ---
       function getGradientColor(misalignment, greenThreshold) {
         const redPoint = greenThreshold * 5;
