@@ -16,17 +16,9 @@
     .app-header { padding: 14px; text-align: center; font-size: 1.3rem; font-weight: 600; border-bottom: 1px solid var(--secondary-bg); }
     .main-content { display: flex; padding: 12px; gap: 12px; min-height: 0; }
     .camera-view-container { flex-grow: 1; position: relative; min-width: 0; }
-    .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; /* 4:3 aspect ratio placeholder */ }
+    .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
     .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
-    
-    /* --- MODIFIED CSS --- */
-    .camera-view video {
-      width: 100%;
-      height: 100%;
-      /* Use 'contain' to fit the video within the view, preserving aspect ratio */
-      object-fit: contain; 
-    }
-
+    .camera-view video { width: 100%; height: 100%; object-fit: contain; }
     .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.05s linear; }
     #target-svg { transform: translate(-50%, -50%); }
     #helper-svg { transform: translate(-50%, -50%) scale(0.8); }
@@ -37,6 +29,8 @@
     .control-button:disabled { background-color: var(--disabled-color); color: #FFF; border-color: #999; box-shadow: none; cursor: not-allowed; }
     .control-button.enabled { background-color: var(--accent-color); color: var(--accent-text-color); border-color: #0056b3; box-shadow: 0 5px 0 0 #0056b3; }
     .control-button.enabled:active { transform: translateY(3px); box-shadow: 0 2px 0 0 #004a99; }
+    .control-button.cancel { background-color: #dc3545; border-color: #a71d2a; box-shadow: 0 5px 0 0 #a71d2a; }
+    .control-button.cancel:active { box-shadow: 0 2px 0 0 #8b1822; }
     .hidden { display: none; }
     .progress-display { display: flex; align-items: center; gap: 8px; padding: 12px; overflow-x: auto; }
     .progress-frame { flex-shrink: 0; height: 50px; width: 37.5px; background-color: var(--secondary-bg); border-radius: 4px; border: 1px solid #CCC; object-fit: cover; }
@@ -57,10 +51,13 @@
           <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
         </div>
       </div>
-      <!-- --- MODIFIED HTML --- -->
+      <!-- --- MODIFIED HTML for new cancel button --- -->
       <div class="control-panel">
         <div id="pre-scan-controls"><button class="control-button" id="start-btn" disabled>Start</button></div>
-        <div id="in-scan-controls" class="hidden"><button class="control-button enabled" id="pause-btn">Pause</button></div>
+        <div id="in-scan-controls" class="hidden">
+          <button class="control-button enabled" id="pause-btn">Pause</button>
+          <button class="control-button enabled cancel hidden" id="cancel-btn">Cancel</button>
+        </div>
         <div id="scan-complete-controls" class="hidden"><button class="control-button enabled" id="rescan-btn">Rescan</button><button class="control-button enabled" id="submit-btn">Submit</button></div>
       </div>
     </div>
@@ -75,38 +72,42 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       // --- DOM ELEMENT REFERENCES ---
-      const targetSVG = document.getElementById('target-svg');
-      const helperSVGPath = document.querySelector('#helper-svg path');
       const startBtn = document.getElementById('start-btn');
-      const pauseBtn = document.getElementById('pause-btn'); // New pause button
+      const pauseBtn = document.getElementById('pause-btn');
+      const cancelBtn = document.getElementById('cancel-btn'); // New
       const appStatus = document.getElementById('app-status');
+      const preScanControls = document.getElementById('pre-scan-controls');
+      const inScanControls = document.getElementById('in-scan-controls');
+      const scanCompleteControls = document.getElementById('scan-complete-controls');
+      const videoElement = document.getElementById('video-feed');
+      const snapshotCanvas = document.getElementById('snapshot-canvas');
       const permissionOverlay = document.getElementById('permission-overlay');
       const permissionBtn = document.getElementById('permission-button');
       const permissionError = document.getElementById('permission-error');
       const progressDisplay = document.getElementById('progress-display');
-      const preScanControls = document.getElementById('pre-scan-controls');
-      const inScanControls = document.getElementById('in-scan-controls'); // New in-scan controls
-      const scanCompleteControls = document.getElementById('scan-complete-controls');
-      const videoElement = document.getElementById('video-feed');
-      const snapshotCanvas = document.getElementById('snapshot-canvas');
-      const cameraView = document.getElementById('camera-view');
+      const targetSVG = document.getElementById('target-svg');
+      const helperSVG = document.getElementById('helper-svg');
+      const helperSVGPath = document.querySelector('#helper-svg path');
 
-      // --- STATE VARIABLES ---
-      let isAligned = false, alignmentTimer = null;
-      let isScanning = false; 
-      let isPaused = false; // NEW: Track paused state
+      // --- STATE & SENSOR DATA ---
+      let isScanning = false, isPaused = false, isAligned = false, isAwaitingMove = false;
+      let alignmentTimer = null, stream = null;
       let capturedImages = [];
-      let stream = null;
+      let orientationData = { alpha: null, beta: null, gamma: null };
+      let initialAlpha = null, targetAlpha = null;
 
       // --- CONSTANTS ---
-      const ALIGNMENT_TOLERANCE = 16;
-      const ALIGNMENT_HOLD_TIME = 1000;
+      const TOTAL_SNAPSHOTS = 12;
+      const DEGREES_PER_SNAPSHOT = 360 / TOTAL_SNAPSHOTS;
+      const PITCH_ROLL_TOLERANCE = 8; // Tighter tolerance for pitch/roll
+      const YAW_TOLERANCE = 10;        // Tolerance for rotation
+      const ALIGNMENT_HOLD_TIME = 750; // ms to hold steady for capture
       const TARGET_PITCH = 80;
-      let smoothedRoll = 0;
       const SMOOTHING_FACTOR = 0.1;
 
       // --- PERMISSION HANDLING ---
       function startListening() { window.addEventListener('deviceorientation', handleOrientation); permissionOverlay.classList.add('hidden'); }
+      // ... (Rest of permission handling is unchanged) ...
       function handlePermission() {
         if (navigator.permissions && typeof navigator.permissions.query === 'function') {
           navigator.permissions.query({ name: 'accelerometer' }).then(result => {
@@ -124,125 +125,130 @@
         } else { startListening(); }
       }
 
-      // --- CORE LOGIC (Heavily Modified) ---
+      // --- CORE LOGIC ---
       function handleOrientation(event) {
-          if (isPaused) return; // Do nothing if paused
+        // Always update the latest sensor data
+        orientationData = { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
+        if (isPaused || event.beta === null) return;
 
-          let { beta, gamma } = event;
-          if (beta === null || gamma === null) return;
-          
-          // --- Visual guide logic (runs always) ---
-          let yTranslatePercent = 0;
-          if (beta <= TARGET_PITCH) { const progress = beta / TARGET_PITCH; yTranslatePercent = -50 + (progress * 50); }
-          else { const progress = (beta - TARGET_PITCH) / (180 - TARGET_PITCH); yTranslatePercent = progress * 50; }
-          yTranslatePercent = Math.max(-50, Math.min(50, yTranslatePercent));
-          smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (gamma * SMOOTHING_FACTOR);
-          const pitchForScaling = Math.min(Math.abs(beta), TARGET_PITCH);
-          const rotationScale = 1.0 - (0.8 * (pitchForScaling / TARGET_PITCH));
-          const finalRotation = -smoothedRoll * rotationScale;
-          targetSVG.style.transform = `translate(-50%, calc(-50% + ${yTranslatePercent}%)) rotate(${finalRotation}deg)`;
+        // --- Visual guide for phone's current orientation (Helper SVG) ---
+        let yTranslatePercent = 0;
+        if (event.beta <= TARGET_PITCH) { yTranslatePercent = -50 + ((event.beta / TARGET_PITCH) * 50); }
+        else { yTranslatePercent = ((event.beta - TARGET_PITCH) / (180 - TARGET_PITCH)) * 50; }
+        helperSVG.style.transform = `translate(-50%, calc(-50% + ${yTranslatePercent}%)) rotate(${-event.gamma}deg)`;
+        
+        const pitchOffset = event.beta - TARGET_PITCH;
+        const rollOffset = event.gamma;
+        const pitchRollMisalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
 
-          const pitchOffset = beta - TARGET_PITCH;
-          const rollOffset = gamma;
-          const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
-          helperSVGPath.style.fill = getGradientColor(misalignment);
-          
-          // --- State-dependent logic (pre-scan vs in-scan) ---
-          if (!isScanning) {
-            // Pre-scan: Check alignment to enable the start button
-            if (misalignment < ALIGNMENT_TOLERANCE) {
-              if (!isAligned && alignmentTimer === null) {
-                alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGNMENT_HOLD_TIME);
-              }
+        // --- State-dependent logic ---
+        if (!isScanning) {
+            // PRE-SCAN: Guide to starting position
+            targetSVG.style.transform = `translate(-50%, -50%)`; // Target is centered
+            helperSVGPath.style.fill = getGradientColor(pitchRollMisalignment, PITCH_ROLL_TOLERANCE);
+            
+            if (pitchRollMisalignment < PITCH_ROLL_TOLERANCE) {
+                if (!isAligned && alignmentTimer === null) {
+                    alignmentTimer = setTimeout(() => setAlignedState(true), ALIGNMENT_HOLD_TIME);
+                }
             } else {
-              if (alignmentTimer) { clearTimeout(alignmentTimer); alignmentTimer = null; }
-              if (isAligned) { setAlignedState(false); }
+                if (alignmentTimer) { clearTimeout(alignmentTimer); alignmentTimer = null; }
+                if (isAligned) setAlignedState(false);
             }
-          } else {
-            // In-scan: Check alignment to guide the user (auto-capture logic will go here later)
-            if (misalignment < ALIGNMENT_TOLERANCE) {
-              appStatus.textContent = "Hold steady...";
+        } else {
+            // IN-SCAN: Guide to next snapshot position
+            const yawDiff = getShortestAngleDiff(event.alpha, targetAlpha);
+            const yawOffset = Math.abs(yawDiff);
+            const totalMisalignment = Math.sqrt(Math.pow(pitchRollMisalignment, 2) + Math.pow(yawOffset, 2));
+
+            // Move the target SVG horizontally to guide yaw
+            const xTranslatePercent = Math.max(-50, Math.min(50, yawDiff)); // Clamp between -50% and +50%
+            targetSVG.style.transform = `translate(calc(-50% + ${xTranslatePercent}%), -50%)`;
+            helperSVGPath.style.fill = getGradientColor(totalMisalignment, PITCH_ROLL_TOLERANCE + YAW_TOLERANCE);
+
+            // Check if user has moved away from the last capture point
+            if (isAwaitingMove && yawOffset > YAW_TOLERANCE * 1.5) {
+                isAwaitingMove = false;
+            }
+
+            // Check for alignment to take the next picture
+            if (!isAwaitingMove && pitchRollMisalignment < PITCH_ROLL_TOLERANCE && yawOffset < YAW_TOLERANCE) {
+                if (alignmentTimer === null) {
+                    appStatus.textContent = 'Hold steady...';
+                    alignmentTimer = setTimeout(() => {
+                        takeSnapshot();
+                        setNextTarget();
+                    }, ALIGNMENT_HOLD_TIME);
+                }
             } else {
-              appStatus.textContent = `Scan in progress... (${capturedImages.length}/12)`;
+                if (alignmentTimer) {
+                    clearTimeout(alignmentTimer);
+                    alignmentTimer = null;
+                    appStatus.textContent = `Rotate to target (${capturedImages.length}/${TOTAL_SNAPSHOTS})`;
+                }
             }
-          }
+        }
       }
 
-      // --- COLOR GRADIENT LOGIC (Unchanged) ---
-      const RGB_COLORS = { green: [40, 167, 69], yellow: [255, 193, 7], red: [220, 53, 69] };
-      function interpolate(start, end, progress) { return Math.round(start + progress * (end - start)); }
-      function getGradientColor(misalignment) {
-        const greenPoint = ALIGNMENT_TOLERANCE;
-        const redPoint = ALIGNMENT_TOLERANCE * 5;
-        const yellowPoint = (greenPoint + redPoint) / 2;
+      // --- COLOR GRADIENT LOGIC (Now takes a tolerance parameter) ---
+      function getGradientColor(misalignment, greenThreshold) {
+        const redPoint = greenThreshold * 5;
+        const yellowPoint = (greenThreshold + redPoint) / 2;
+        if (misalignment <= greenThreshold) return '#28a745'; // Green
+        if (misalignment >= redPoint) return '#dc3545'; // Red
         let startColor, endColor, progress;
-        if (misalignment <= greenPoint) return `rgb(${RGB_COLORS.green.join(',')})`;
-        if (misalignment >= redPoint) return `rgb(${RGB_COLORS.red.join(',')})`;
         if (misalignment < yellowPoint) {
-          startColor = RGB_COLORS.green; endColor = RGB_COLORS.yellow;
-          progress = (misalignment - greenPoint) / (yellowPoint - greenPoint);
+            startColor = [40, 167, 69]; endColor = [255, 193, 7]; // Green -> Yellow
+            progress = (misalignment - greenThreshold) / (yellowPoint - greenThreshold);
         } else {
-          startColor = RGB_COLORS.yellow; endColor = RGB_COLORS.red;
-          progress = (misalignment - yellowPoint) / (redPoint - yellowPoint);
+            startColor = [255, 193, 7]; endColor = [220, 53, 69]; // Yellow -> Red
+            progress = (misalignment - yellowPoint) / (redPoint - yellowPoint);
         }
-        const r = interpolate(startColor[0], endColor[0], progress);
-        const g = interpolate(startColor[1], endColor[1], progress);
-        const b = interpolate(startColor[2], endColor[2], progress);
+        const r = Math.round(startColor[0] + progress * (endColor[0] - startColor[0]));
+        const g = Math.round(startColor[1] + progress * (endColor[1] - startColor[1]));
+        const b = Math.round(startColor[2] + progress * (endColor[2] - startColor[2]));
         return `rgb(${r},${g},${b})`;
       }
-
-      // --- UI STATE LOGIC ---
-      function setAlignedState(isNowAligned) {
-          if (isScanning) return;
-          isAligned = isNowAligned;
-          startBtn.disabled = !isAligned;
-          startBtn.classList.toggle('enabled', isNowAligned);
-          appStatus.textContent = isAligned ? 'Ready to Start' : 'Align to Start';
-      }
-
-      // --- SCANNING PHASE LOGIC (Modified) ---
+      
+      // --- SCANNING PHASE LOGIC ---
       async function startScan() {
+          if (orientationData.alpha === null) {
+              appStatus.textContent = "Getting orientation...";
+              setTimeout(startScan, 200); // Wait for first sensor reading
+              return;
+          }
           isScanning = true;
           isPaused = false;
+          initialAlpha = orientationData.alpha;
+          targetAlpha = initialAlpha; // First shot is at current orientation
+
           appStatus.textContent = 'Starting camera...';
           preScanControls.classList.add('hidden');
-          inScanControls.classList.remove('hidden'); // Show pause button
+          inScanControls.classList.remove('hidden');
 
           try {
               const constraints = { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false };
               stream = await navigator.mediaDevices.getUserMedia(constraints);
               videoElement.srcObject = stream;
-              
               videoElement.onloadedmetadata = () => {
                   videoElement.classList.remove('hidden');
-                  // The background color is now set in CSS, no need to change it here
-                  appStatus.textContent = `Scan in progress... (1/12)`;
                   takeSnapshot();
-                  // Alignment guides are now always active, no need to re-add listeners
+                  setNextTarget(); // Immediately set target for the *second* shot
               };
           } catch (error) {
               console.error("Camera access error:", error);
-              appStatus.textContent = 'Camera access denied!';
-              inScanControls.classList.add('hidden');
-              scanCompleteControls.classList.remove('hidden');
-              document.getElementById('submit-btn').classList.add('hidden');
+              cancelScan(true, 'Camera access denied!');
           }
       }
 
-      function pauseScan() {
-        if (!isScanning || isPaused) return;
-        isPaused = true;
-        videoElement.pause();
-        pauseBtn.textContent = 'Resume';
-        appStatus.textContent = 'Scan Paused';
-      }
-
-      function resumeScan() {
-        if (!isScanning || !isPaused) return;
-        isPaused = false;
-        videoElement.play();
-        pauseBtn.textContent = 'Pause';
-        appStatus.textContent = `Scan in progress... (${capturedImages.length}/12)`;
+      function setNextTarget() {
+        if (capturedImages.length >= TOTAL_SNAPSHOTS) {
+            completeScan();
+            return;
+        }
+        targetAlpha = (initialAlpha + capturedImages.length * DEGREES_PER_SNAPSHOT) % 360;
+        isAwaitingMove = true;
+        appStatus.textContent = `Rotate to target (${capturedImages.length}/${TOTAL_SNAPSHOTS})`;
       }
 
       function takeSnapshot() {
@@ -250,23 +256,65 @@
           snapshotCanvas.width = videoElement.videoWidth;
           snapshotCanvas.height = videoElement.videoHeight;
           context.drawImage(videoElement, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
-          
           snapshotCanvas.toBlob(blob => {
               if (blob) {
                   capturedImages.push(blob);
-                  console.log(`Snapshot taken. Total images: ${capturedImages.length}. Size: ${(blob.size / 1024).toFixed(1)} KB`);
                   updateProgressDisplay();
               }
           }, 'image/jpeg', 0.9);
       }
+      
+      function completeScan() {
+        appStatus.textContent = 'Scan Complete!';
+        stopCamera();
+        inScanControls.classList.add('hidden');
+        scanCompleteControls.classList.remove('hidden');
+      }
 
+      function cancelScan(isError = false, message = 'Align to Start') {
+        stopCamera();
+        isScanning = false;
+        isPaused = false;
+        isAligned = false;
+        isAwaitingMove = false;
+        if(alignmentTimer) clearTimeout(alignmentTimer);
+        alignmentTimer = null;
+        capturedImages = [];
+        updateProgressDisplay(); // Clear thumbnails
+        
+        inScanControls.classList.add('hidden');
+        cancelBtn.classList.add('hidden');
+        scanCompleteControls.classList.add('hidden');
+        preScanControls.classList.remove('hidden');
+
+        setAlignedState(false);
+        appStatus.textContent = message;
+      }
+      
+      function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        videoElement.srcObject = null;
+        videoElement.classList.add('hidden');
+      }
+
+      // --- UI & UTILITY FUNCTIONS ---
+      function getShortestAngleDiff(a, b) { return ((((b - a) % 360) + 540) % 360) - 180; }
+      function setAlignedState(isNowAligned) {
+          if (isScanning) return;
+          isAligned = isNowAligned;
+          startBtn.disabled = !isAligned;
+          startBtn.classList.toggle('enabled', isNowAligned);
+          appStatus.textContent = isAligned ? 'Ready to Start' : 'Align to Start';
+      }
       function updateProgressDisplay() {
           progressDisplay.innerHTML = '';
           capturedImages.forEach(blob => {
               const img = document.createElement('img');
               img.classList.add('progress-frame');
               img.src = URL.createObjectURL(blob);
-              // Revoking object URLs is important, but do it after the image loads
               img.onload = () => URL.revokeObjectURL(img.src);
               progressDisplay.appendChild(img);
           });
@@ -278,21 +326,22 @@
           permissionError.textContent = "Device orientation not supported.";
           permissionOverlay.style.display = 'flex';
           permissionBtn.disabled = true;
-      } else {
-          handlePermission();
-      }
+      } else { handlePermission(); }
       
-      startBtn.addEventListener('click', () => {
-          if (isAligned && !isScanning) {
-              startScan();
-          }
-      });
-
+      startBtn.addEventListener('click', () => { if (isAligned && !isScanning) startScan(); });
+      cancelBtn.addEventListener('click', () => cancelScan());
       pauseBtn.addEventListener('click', () => {
+        isPaused = !isPaused;
         if (isPaused) {
-          resumeScan();
+            videoElement.pause();
+            pauseBtn.textContent = 'Resume';
+            appStatus.textContent = 'Scan Paused';
+            cancelBtn.classList.remove('hidden');
         } else {
-          pauseScan();
+            videoElement.play();
+            pauseBtn.textContent = 'Pause';
+            appStatus.textContent = `Rotate to target (${capturedImages.length}/${TOTAL_SNAPSHOTS})`;
+            cancelBtn.classList.add('hidden');
         }
       });
     });
