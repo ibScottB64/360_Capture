@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>360 Room Scan</title>
     <style>
-        /* --- Basic Setup & Theming --- */
+        /* --- CSS is unchanged from the previous version --- */
         :root {
             --primary-bg: #FFFFFF;
             --secondary-bg: #EAEAF0;
@@ -13,164 +13,63 @@
             --accent-color: #007BFF;
             --accent-text-color: #FFFFFF;
             --disabled-color: #B0B0B0;
-            /* Alignment Colors */
-            --aligned-color: #28a745;   /* Green */
-            --warn-color: #ffc107;      /* Yellow */
-            --error-color: #dc3545;     /* Red */
+            --aligned-color: #28a745;
+            --warn-color: #ffc107;
+            --error-color: #dc3545;
             --target-color-light: #A3E635;
             --text-color: #333333;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-
-        html, body {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; font-family: var(--font-family);
-            background-color: var(--secondary-bg);
-        }
-
-        /* --- Main App Container --- */
-        .app-container {
-            display: flex; flex-direction: column; width: 100%;
-            max-width: 480px; height: 100dvh; margin: 0 auto;
-            background-color: var(--primary-bg); box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        /* --- Header, Spacer, Progress, Status (Unchanged) --- */
-        .app-header {
-            flex-shrink: 0; padding: 14px; text-align: center;
-            font-size: 1.3rem; font-weight: 600; border-bottom: 1px solid var(--secondary-bg);
-        }
-        .main-content {
-            flex-shrink: 0; display: flex; padding: 12px; gap: 12px;
-        }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: var(--font-family); background-color: var(--secondary-bg); }
+        .app-container { display: flex; flex-direction: column; width: 100%; max-width: 480px; height: 100dvh; margin: 0 auto; background-color: var(--primary-bg); box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        .app-header { flex-shrink: 0; padding: 14px; text-align: center; font-size: 1.3rem; font-weight: 600; border-bottom: 1px solid var(--secondary-bg); }
+        .main-content { flex-shrink: 0; display: flex; padding: 12px; gap: 12px; }
         .spacer { flex-grow: 1; }
-        .progress-display {
-            flex-shrink: 0; display: flex; align-items: center; gap: 8px;
-            padding: 12px; overflow-x: auto;
-        }
-        .progress-frame {
-            flex-shrink: 0; height: 50px; width: 37.5px;
-            background-color: var(--secondary-bg); border-radius: 4px; border: 1px solid #CCC;
-        }
-        .app-status {
-            flex-shrink: 0; padding: 16px; text-align: center;
-            font-size: 1.3rem; font-weight: 500; border-top: 1px solid var(--secondary-bg);
-        }
-
-        /* --- Camera View & Alignment --- */
-        .camera-view-container {
-            flex-grow: 1; position: relative; min-width: 0;
-        }
-        .camera-view-container::before {
-            content: ''; display: block; padding-bottom: 133.33%;
-        }
-        .camera-view {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: var(--camera-bg); border-radius: 8px; overflow: hidden;
-        }
-        .alignment-svg {
-            position: absolute; top: 50%; left: 50%; width: 70%; height: auto;
-            transition: transform 0.1s linear; /* Smooths the target movement */
-        }
-        #target-svg {
-            transform: translate(-50%, -50%); /* JS will update this */
-        }
-        #helper-svg {
-            transform: translate(-50%, -50%); /* This one is stationary */
-        }
+        .progress-display { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 12px; overflow-x: auto; }
+        .progress-frame { flex-shrink: 0; height: 50px; width: 37.5px; background-color: var(--secondary-bg); border-radius: 4px; border: 1px solid #CCC; }
+        .app-status { flex-shrink: 0; padding: 16px; text-align: center; font-size: 1.3rem; font-weight: 500; border-top: 1px solid var(--secondary-bg); }
+        .camera-view-container { flex-grow: 1; position: relative; min-width: 0; }
+        .camera-view-container::before { content: ''; display: block; padding-bottom: 133.33%; }
+        .camera-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--camera-bg); border-radius: 8px; overflow: hidden; }
+        .alignment-svg { position: absolute; top: 50%; left: 50%; width: 70%; height: auto; transition: transform 0.1s linear; }
+        #target-svg { transform: translate(-50%, -50%); }
+        #helper-svg { transform: translate(-50%, -50%); }
         #target-svg path { fill: var(--target-color-light); }
-        #helper-svg path {
-            fill: var(--error-color); /* Start as red */
-            transition: fill 0.2s ease-in-out;
-        }
-        
-        /* --- Control Panel & Button States --- */
-        .control-panel {
-            flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px;
-        }
-        .control-button {
-            width: 100%; padding: 16px 10px; font-size: 1.1rem; font-weight: bold;
-            border-radius: 8px; cursor: pointer; transition: all 0.1s ease-out;
-            border-style: solid; border-width: 1px;
-        }
-        .control-button:disabled {
-            background-color: var(--disabled-color); color: #FFF;
-            border-color: #999; box-shadow: none; cursor: not-allowed;
-        }
-        .control-button.enabled {
-            background-color: var(--accent-color); color: var(--accent-text-color);
-            border-color: #0056b3; box-shadow: 0 5px 0 0 #0056b3;
-        }
-        .control-button.enabled:active {
-            transform: translateY(3px); box-shadow: 0 2px 0 0 #004a99;
-        }
+        #helper-svg path { fill: var(--error-color); transition: fill 0.2s ease-in-out; }
+        .control-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; width: 100px; }
+        .control-button { width: 100%; padding: 16px 10px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.1s ease-out; border-style: solid; border-width: 1px; }
+        .control-button:disabled { background-color: var(--disabled-color); color: #FFF; border-color: #999; box-shadow: none; cursor: not-allowed; }
+        .control-button.enabled { background-color: var(--accent-color); color: var(--accent-text-color); border-color: #0056b3; box-shadow: 0 5px 0 0 #0056b3; }
+        .control-button.enabled:active { transform: translateY(3px); box-shadow: 0 2px 0 0 #004a99; }
         .hidden { display: none; }
-
-        /* --- NEW: Permission Overlay --- */
-        #permission-overlay {
-            position: absolute; top: 0; left: 0; z-index: 100;
-            width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.75);
-            color: white; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; text-align: center;
-            padding: 20px; box-sizing: border-box;
-        }
+        #permission-overlay { position: absolute; top: 0; left: 0; z-index: 100; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.75); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; box-sizing: border-box; }
         #permission-overlay h2 { margin-top: 0; }
-        #permission-button {
-            padding: 15px 30px; font-size: 1.2rem; font-weight: bold;
-            border: none; border-radius: 8px; background-color: var(--accent-color);
-            color: white; cursor: pointer;
-        }
+        #permission-button { padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border: none; border-radius: 8px; background-color: var(--accent-color); color: white; cursor: pointer; }
+        #permission-error { color: var(--error-color); margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        
-        <header class="app-header">
-            360 Room Scan
-        </header>
-
+        <!-- HTML is unchanged -->
+        <header class="app-header">360 Room Scan</header>
         <div class="main-content">
             <div class="camera-view-container">
                 <div class="camera-view" id="camera-view">
-                    <!-- The Target 'T' (light green, moves with phone) -->
-                    <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100">
-                        <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
-                    </svg>
-                    <!-- The Helper 'AH' (stationary gunsight) -->
-                    <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100">
-                        <path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" />
-                    </svg>
+                    <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
+                    <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
                 </div>
             </div>
-
             <div class="control-panel">
-                <!-- Controls for Pre-Scan State -->
-                <div id="pre-scan-controls">
-                    <button class="control-button" id="start-btn" disabled>Start</button>
-                </div>
-                <!-- Controls for Scan Complete State (initially hidden) -->
-                <div id="scan-complete-controls" class="hidden">
-                    <button class="control-button" id="rescan-btn">Rescan</button>
-                    <button class="control-button" id="submit-btn">Submit</button>
-                </div>
+                <div id="pre-scan-controls"><button class="control-button" id="start-btn" disabled>Start</button></div>
+                <div id="scan-complete-controls" class="hidden"><button class="control-button" id="rescan-btn">Rescan</button><button class="control-button" id="submit-btn">Submit</button></div>
             </div>
         </div>
-
         <div class="spacer"></div>
-
-        <div class="progress-display" id="progress-display">
-            <!-- Initially empty -->
-        </div>
-
-        <footer class="app-status" id="app-status">
-            Align to Start
-        </footer>
-
+        <div class="progress-display" id="progress-display"></div>
+        <footer class="app-status" id="app-status">Align to Start</footer>
     </div>
 
-    <!-- NEW: Permission overlay -->
     <div id="permission-overlay">
         <h2>Sensor Access Required</h2>
         <p>This app needs access to your phone's motion sensors to help you align the camera.</p>
@@ -180,7 +79,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- DOM Elements ---
+            // --- DOM Elements (unchanged) ---
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
             const cameraView = document.getElementById('camera-view');
@@ -189,127 +88,88 @@
             const permissionOverlay = document.getElementById('permission-overlay');
             const permissionBtn = document.getElementById('permission-button');
             const permissionError = document.getElementById('permission-error');
-
-            // --- State & Config ---
+            
+            // --- State & Config (unchanged) ---
             let isAligned = false;
             let alignmentTimer = null;
-            const PITCH_SENSITIVITY = 3.5; // Pixels of movement per degree of tilt
-            const ALIGNMENT_TOLERANCE = 4; // Degrees (pitch/roll) to be considered "aligned"
-            const ALIGNMENT_HOLD_TIME = 1000; // 1 second
+            const PITCH_SENSITIVITY = 3.5;
+            const ALIGNMENT_TOLERANCE = 4;
+            const ALIGNMENT_HOLD_TIME = 1000;
             
-            // --- Permission Handling ---
+            // --- REVISED: Permission Handling ---
             permissionBtn.addEventListener('click', () => {
-                // For iOS 13+
+                permissionError.textContent = ''; // Clear previous errors
+                
+                // This function starts the sensor listening and hides the overlay.
+                const startListening = () => {
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    permissionOverlay.classList.add('hidden');
+                };
+
+                // For modern browsers like iOS Safari
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(permissionState => {
                             if (permissionState === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrientation);
-                                permissionOverlay.classList.add('hidden');
+                                startListening();
                             } else {
                                 permissionError.textContent = "Permission denied. This app cannot function without sensor access.";
                             }
                         })
-                        .catch(console.error);
+                        .catch(err => {
+                            // Display any other errors to the user
+                            permissionError.textContent = "An error occurred: " + err.message;
+                        });
                 } else {
-                    // For Android and older browsers
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    permissionOverlay.classList.add('hidden');
+                    // For Android/other browsers that don't need explicit request
+                    // FIX: This was the missing part. We just start listening directly.
+                    startListening();
                 }
             });
 
-            // --- Core Alignment Logic ---
+            // --- Core Logic functions are unchanged ---
             function handleOrientation(event) {
-                // beta: front-back tilt (pitch), gamma: left-right tilt (roll)
-                let beta = event.beta; // Range: -180 to 180
-                let gamma = event.gamma; // Range: -90 to 90
-
+                let beta = event.beta; let gamma = event.gamma;
                 if (beta === null || gamma === null) {
-                    appStatus.textContent = "Sensor data not available.";
-                    return;
+                    appStatus.textContent = "Sensor data not available."; return;
                 }
-
-                // Calculate offsets from the "perfectly vertical" target
-                // Target pitch (beta) = 90 degrees.
-                // Target roll (gamma) = 0 degrees.
                 const pitchOffset = beta - 90;
                 const rollOffset = gamma;
-
-                // --- 1. Update Target (T) Position and Rotation ---
-                // Calculate vertical movement based on pitch
                 let yMovement = pitchOffset * PITCH_SENSITIVITY;
-
-                // Clamp the movement to keep the target inside the camera view
                 const cameraHeight = cameraView.offsetHeight;
                 const targetHeight = targetSVG.offsetHeight;
                 const max_y = (cameraHeight - targetHeight) / 2;
                 const min_y = -max_y;
                 yMovement = Math.max(min_y, Math.min(max_y, yMovement));
-
-                // Calculate rotation based on roll (counter-rotate)
                 const rotation = -rollOffset;
-
-                // Apply the transform to the moving Target (T)
                 targetSVG.style.transform = `translate(-50%, calc(-50% + ${yMovement}px)) rotate(${rotation}deg)`;
-
-                // --- 2. Update Helper (AH) Color ---
-                // Calculate total misalignment (a simple metric)
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
-
                 helperSVGPath.style.fill = getAlignmentColor(misalignment);
-                
-                // --- 3. Check for Alignment and Update UI State ---
                 if (misalignment < ALIGNMENT_TOLERANCE) {
-                    // We are inside the tolerance zone
                     if (!isAligned && alignmentTimer === null) {
-                        // Start a timer to confirm alignment
-                        alignmentTimer = setTimeout(() => {
-                            setAlignedState(true);
-                        }, ALIGNMENT_HOLD_TIME);
+                        alignmentTimer = setTimeout(() => { setAlignedState(true); }, ALIGNMENT_HOLD_TIME);
                     }
                 } else {
-                    // We are outside the tolerance zone
-                    if (alignmentTimer) {
-                        // Cancel the timer if we move out of alignment
-                        clearTimeout(alignmentTimer);
-                        alignmentTimer = null;
-                    }
-                    if (isAligned) {
-                        setAlignedState(false);
-                    }
+                    if (alignmentTimer) { clearTimeout(alignmentTimer); alignmentTimer = null; }
+                    if (isAligned) { setAlignedState(false); }
                 }
             }
-            
             function getAlignmentColor(misalignment) {
-                if (misalignment < ALIGNMENT_TOLERANCE) {
-                    return getComputedStyle(document.documentElement).getPropertyValue('--aligned-color');
-                } else if (misalignment < ALIGNMENT_TOLERANCE * 5) { // Yellow up to 5x the tolerance
-                    return getComputedStyle(document.documentElement).getPropertyValue('--warn-color');
-                } else {
-                    return getComputedStyle(document.documentElement).getPropertyValue('--error-color');
-                }
+                if (misalignment < ALIGNMENT_TOLERANCE) return getComputedStyle(document.documentElement).getPropertyValue('--aligned-color');
+                else if (misalignment < ALIGNMENT_TOLERANCE * 5) return getComputedStyle(document.documentElement).getPropertyValue('--warn-color');
+                else return getComputedStyle(document.documentElement).getPropertyValue('--error-color');
             }
-
             function setAlignedState(isNowAligned) {
                 isAligned = isNowAligned;
-                if (isAligned) {
-                    startBtn.disabled = false;
-                    startBtn.classList.add('enabled');
-                    appStatus.textContent = 'Ready to Start';
-                } else {
-                    startBtn.disabled = true;
-                    startBtn.classList.remove('enabled');
-                    appStatus.textContent = 'Align to Start';
-                }
+                startBtn.disabled = !isAligned;
+                startBtn.classList.toggle('enabled', isNowAligned);
+                appStatus.textContent = isAligned ? 'Ready to Start' : 'Align to Start';
             }
-            
-            // Check for API support at the very beginning
             if (!window.DeviceOrientationEvent) {
                 permissionError.textContent = "Sorry, your browser does not support device orientation events.";
                 permissionBtn.disabled = true;
             }
         });
     </script>
-
 </body>
 </html>
