@@ -38,17 +38,14 @@
     </style>
 </head>
 <body>
-
     <div class="app-container">
         <!-- HTML is unchanged -->
         <header class="app-header">360 Room Scan</header>
         <div class="main-content">
-            <div class="camera-view-container">
-                <div class="camera-view" id="camera-view">
-                    <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
-                    <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
-                </div>
-            </div>
+            <div class="camera-view-container"><div class="camera-view" id="camera-view">
+                <svg id="helper-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
+                <svg id="target-svg" class="alignment-svg" viewBox="0 0 100 100"><path d="M50 5 L95 95 L75 95 L57 55 L43 55 L25 95 L5 95 Z" /></svg>
+            </div></div>
             <div class="control-panel">
                 <div id="pre-scan-controls"><button class="control-button" id="start-btn" disabled>Start</button></div>
                 <div id="scan-complete-controls" class="hidden"><button class="control-button enabled" id="rescan-btn">Rescan</button><button class="control-button enabled" id="submit-btn">Submit</button></div>
@@ -66,6 +63,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- Elements and Config ---
             const targetSVG = document.getElementById('target-svg');
             const helperSVGPath = document.querySelector('#helper-svg path');
             const cameraView = document.getElementById('camera-view');
@@ -76,43 +74,80 @@
             const permissionError = document.getElementById('permission-error');
             
             let isAligned = false, alignmentTimer = null;
-            const PITCH_SENSITIVITY = 3.5, ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
-            let smoothedRoll = 0;
-            const SMOOTHING_FACTOR = 0.1;
+            const ALIGNMENT_TOLERANCE = 4, ALIGNMENT_HOLD_TIME = 1000;
+            const TARGET_PITCH = 80;
 
-            permissionBtn.addEventListener('click', () => {
-                const startListening = () => {
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    permissionOverlay.classList.add('hidden');
-                };
+            // FIX 2: Sensitivity constants for both axes
+            const PITCH_SENSITIVITY = 3.5; 
+            const ROLL_SENSITIVITY = 3.5;
+
+            // --- Permission Handling ---
+            function startListening() {
+                window.addEventListener('deviceorientation', handleOrientation);
+                permissionOverlay.classList.add('hidden');
+            }
+
+            function handlePermission() {
+                // Check if the modern Permissions API is available
+                if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+                    // 'gyroscope' or 'accelerometer' are good proxies for deviceorientation
+                    navigator.permissions.query({ name: 'accelerometer' }).then(result => {
+                        if (result.state === 'granted') {
+                            startListening(); // Permission already granted
+                        } else if (result.state === 'prompt') {
+                            // Show the button to ask for permission
+                            permissionBtn.onclick = requestSensorAccess;
+                        } else if (result.state === 'denied') {
+                            permissionError.textContent = "Sensor access denied. Please enable in your browser settings.";
+                            permissionBtn.disabled = true;
+                        }
+                    });
+                } else {
+                    // Fallback for older browsers: just show the button
+                    permissionBtn.onclick = requestSensorAccess;
+                }
+            }
+            
+            function requestSensorAccess() {
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission().then(state => {
                         if (state === 'granted') startListening();
                         else permissionError.textContent = "Permission denied.";
                     }).catch(console.error);
-                } else { startListening(); }
-            });
+                } else {
+                    // For browsers that don't require an explicit request
+                    startListening();
+                }
+            }
 
+            // --- Core Movement Logic ---
             function handleOrientation(event) {
-                let { beta, gamma } = event;
+                let { beta, gamma } = event; // pitch, roll
                 if (beta === null || gamma === null) return;
                 
-                // THE FIX: Target pitch is 80 degrees to avoid Gimbal Lock instability at 90.
-                const TARGET_PITCH = 80;
                 const pitchOffset = beta - TARGET_PITCH;
-                
                 const rollOffset = gamma;
-                smoothedRoll = (smoothedRoll * (1 - SMOOTHING_FACTOR)) + (rollOffset * SMOOTHING_FACTOR);
-                const rotation = -smoothedRoll;
 
-                const max_y_percent = 15;
+                // FIX 2: Calculate both X and Y movement
                 let yMovement = pitchOffset * PITCH_SENSITIVITY;
-                const cameraHeight = cameraView.offsetHeight;
-                let yMovementPercent = cameraHeight > 0 ? (yMovement / cameraHeight) * 100 : 0;
-                yMovementPercent = Math.max(-max_y_percent, Math.min(max_y_percent, yMovementPercent));
-                
-                targetSVG.style.transform = `translate(-50%, calc(-50% + ${yMovementPercent}%)) rotate(${rotation}deg)`;
+                let xMovement = rollOffset * ROLL_SENSITIVITY;
 
+                // Clamp movement to keep the Target inside the view
+                // Limit is 15% travel distance from center (since element is 70% wide/high)
+                const max_travel_percent = 15; 
+                const cameraHeight = cameraView.offsetHeight;
+                const cameraWidth = cameraView.offsetWidth;
+
+                let yMovementPercent = cameraHeight > 0 ? (yMovement / cameraHeight) * 100 : 0;
+                let xMovementPercent = cameraWidth > 0 ? (xMovement / cameraWidth) * 100 : 0;
+                
+                yMovementPercent = Math.max(-max_travel_percent, Math.min(max_travel_percent, yMovementPercent));
+                xMovementPercent = Math.max(-max_travel_percent, Math.min(max_travel_percent, xMovementPercent));
+                
+                // Apply the transform WITHOUT rotation
+                targetSVG.style.transform = `translate(calc(-50% + ${xMovementPercent}%), calc(-50% + ${yMovementPercent}%))`;
+
+                // Update colors and UI state based on total misalignment
                 const misalignment = Math.sqrt(Math.pow(pitchOffset, 2) + Math.pow(rollOffset, 2));
                 helperSVGPath.style.fill = getAlignmentColor(misalignment);
                 
@@ -139,9 +174,13 @@
                 appStatus.textContent = isAligned ? 'Ready to Start' : 'Align to Start';
             }
 
+            // --- Initial Setup ---
             if (!window.DeviceOrientationEvent) {
                 permissionError.textContent = "Device orientation not supported.";
+                permissionOverlay.style.display = 'flex';
                 permissionBtn.disabled = true;
+            } else {
+                handlePermission(); // FIX 1: Start the new permission flow
             }
         });
     </script>
